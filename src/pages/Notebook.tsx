@@ -36,23 +36,7 @@ const getInitialNotebookCells = (): NotebookCell[] => {
       id: '2',
       type: 'code',
       language: 'python',
-      content: `# Import essential trading libraries
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime, timedelta
-import warnings
-warnings.filterwarnings('ignore')
-
-# Configure plotting
-plt.style.use('dark_background')
-sns.set_palette("husl")
-
-print("✅ Trading analysis environment initialized")
-print(f"📊 Pandas version: {{pd.__version__}}")
-print(f"🔢 NumPy version: {{np.__version__}}")
-print(f"📈 Matplotlib version: {{plt.matplotlib.__version__}}")`,
+      content: "# Import essential trading libraries\nimport pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nfrom datetime import datetime, timedelta\nimport warnings\nwarnings.filterwarnings('ignore')\n\n# Configure plotting\nplt.style.use('dark_background')\nsns.set_palette(\"husl\")\n\nprint(\"✅ Trading analysis environment initialized\")\nprint(f\"📊 Pandas version: {pd.__version__}\")\nprint(f\"🔢 NumPy version: {np.__version__}\")\nprint(f\"📈 Matplotlib version: {plt.matplotlib.__version__}\")",
       output: '✅ Trading analysis environment initialized\n📊 Pandas version: 1.5.3\n🔢 NumPy version: 1.24.3\n📈 Matplotlib version: 3.7.1',
       executionCount: 1
     },
@@ -79,84 +63,14 @@ ORDER BY trade_date DESC, total_pnl DESC;`,
       id: '4',
       type: 'code',
       language: 'python',
-      content: `# Load and analyze trading data
-def load_trading_data():
-    """Load trading data from the database"""
-    # Simulated data for demonstration
-    dates = pd.date_range('2024-01-01', '2024-03-15', freq='D')
-    
-    data = []
-    for date in dates:
-        # Generate realistic trading data
-        num_trades = np.random.poisson(8)  # Average 8 trades per day
-        for _ in range(num_trades):
-            pnl = np.random.normal(50, 150)  # Average $50 profit, $150 std
-            r_multiple = pnl / 100 if pnl > 0 else pnl / 50  # Risk multiple
-            
-            data.append({{
-                'date': date,
-                'symbol': np.random.choice(['ES', 'NQ', 'CL', 'GC']),
-                'pnl': pnl,
-                'r_multiple': r_multiple,
-                'strategy': np.random.choice(['Momentum', 'Reversal', 'Breakout']),
-                'win': pnl > 0
-            }})
-    
-    return pd.DataFrame(data)
-
-# Load the data
-df = load_trading_data()
-print(f"📈 Loaded {{len(df)}} trades from {{df['date'].min().date()}} to {{df['date'].max().date()}}")
-print(f"💰 Total P&L: ${{df['pnl'].sum():.2f}}")
-print(f"🎯 Win Rate: {{(df['win'].sum() / len(df) * 100):.1f}}%")
-print(f"📊 Average R-Multiple: {{df['r_multiple'].mean():.2f}}")`,
+      content: "# Load and analyze trading data\ndef load_trading_data():\n    \"\"\"Load trading data from the database\"\"\"\n    # Simulated data for demonstration\n    dates = pd.date_range('2024-01-01', '2024-03-15', freq='D')\n    \n    data = []\n    for date in dates:\n        # Generate realistic trading data\n        num_trades = np.random.poisson(8)  # Average 8 trades per day\n        for _ in range(num_trades):\n            pnl = np.random.normal(50, 150)  # Average $50 profit, $150 std\n            r_multiple = pnl / 100 if pnl > 0 else pnl / 50  # Risk multiple\n            \n            data.append({\n                'date': date,\n                'symbol': np.random.choice(['ES', 'NQ', 'CL', 'GC']),\n                'pnl': pnl,\n                'r_multiple': r_multiple,\n                'strategy': np.random.choice(['Momentum', 'Reversal', 'Breakout']),\n                'win': pnl > 0\n            })\n    \n    return pd.DataFrame(data)\n\n# Load the data\ndf = load_trading_data()\nprint(f\"📈 Loaded {len(df)} trades from {df['date'].min().date()} to {df['date'].max().date()}\")\nprint(f\"💰 Total P&L: ${df['pnl'].sum():.2f}\")\nprint(f\"🎯 Win Rate: {(df['win'].sum() / len(df) * 100):.1f}%\")\nprint(f\"📊 Average R-Multiple: {df['r_multiple'].mean():.2f}\")",
       output: '📈 Loaded 592 trades from 2024-01-01 to 2024-03-15\n💰 Total P&L: $28,456.78\n🎯 Win Rate: 64.2%\n📊 Average R-Multiple: 1.85',
       executionCount: 3
     },
     {
       id: '5',
       type: 'visualization',
-      content: `# Create comprehensive trading performance dashboard
-fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-fig.suptitle('Trading Performance Dashboard', fontsize=16, color='white')
-
-# 1. Daily P&L
-daily_pnl = df.groupby('date')['pnl'].sum()
-axes[0,0].plot(daily_pnl.index, daily_pnl.values, color='#00ff88', linewidth=2)
-axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.7)
-axes[0,0].set_title('Daily P&L', color='white')
-axes[0,0].set_ylabel('P&L ($)', color='white')
-axes[0,0].tick_params(colors='white')
-
-# 2. Win Rate by Strategy
-strategy_stats = df.groupby('strategy').agg({{
-    'win': 'mean',
-    'pnl': 'count'
-}}).round(3)
-strategy_stats.columns = ['Win Rate', 'Trade Count']
-strategy_stats['Win Rate'].plot(kind='bar', ax=axes[0,1], color=['#ff6b6b', '#4ecdc4', '#45b7d1'])
-axes[0,1].set_title('Win Rate by Strategy', color='white')
-axes[0,1].set_ylabel('Win Rate', color='white')
-axes[0,1].tick_params(colors='white')
-
-# 3. R-Multiple Distribution
-axes[1,0].hist(df['r_multiple'], bins=30, color='#ffa726', alpha=0.7, edgecolor='white')
-axes[1,0].axvline(x=0, color='red', linestyle='--', alpha=0.7)
-axes[1,0].set_title('R-Multiple Distribution', color='white')
-axes[1,0].set_xlabel('R-Multiple', color='white')
-axes[1,0].set_ylabel('Frequency', color='white')
-axes[1,0].tick_params(colors='white')
-
-# 4. Cumulative P&L
-cumulative_pnl = daily_pnl.cumsum()
-axes[1,1].plot(cumulative_pnl.index, cumulative_pnl.values, color='#9c27b0', linewidth=2)
-axes[1,1].fill_between(cumulative_pnl.index, cumulative_pnl.values, alpha=0.3, color='#9c27b0')
-axes[1,1].set_title('Cumulative P&L', color='white')
-axes[1,1].set_ylabel('Cumulative P&L ($)', color='white')
-axes[1,1].tick_params(colors='white')
-
-plt.tight_layout()
-plt.show()`,
+      content: "# Create comprehensive trading performance dashboard\nfig, axes = plt.subplots(2, 2, figsize=(15, 10))\nfig.suptitle('Trading Performance Dashboard', fontsize=16, color='white')\n\n# 1. Daily P&L\ndaily_pnl = df.groupby('date')['pnl'].sum()\naxes[0,0].plot(daily_pnl.index, daily_pnl.values, color='#00ff88', linewidth=2)\naxes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.7)\naxes[0,0].set_title('Daily P&L', color='white')\naxes[0,0].set_ylabel('P&L ($)', color='white')\naxes[0,0].tick_params(colors='white')\n\n# 2. Win Rate by Strategy\nstrategy_stats = df.groupby('strategy').agg({\n    'win': 'mean',\n    'pnl': 'count'\n}).round(3)\nstrategy_stats.columns = ['Win Rate', 'Trade Count']\nstrategy_stats['Win Rate'].plot(kind='bar', ax=axes[0,1], color=['#ff6b6b', '#4ecdc4', '#45b7d1'])\naxes[0,1].set_title('Win Rate by Strategy', color='white')\naxes[0,1].set_ylabel('Win Rate', color='white')\naxes[0,1].tick_params(colors='white')\n\n# 3. R-Multiple Distribution\naxes[1,0].hist(df['r_multiple'], bins=30, color='#ffa726', alpha=0.7, edgecolor='white')\naxes[1,0].axvline(x=0, color='red', linestyle='--', alpha=0.7)\naxes[1,0].set_title('R-Multiple Distribution', color='white')\naxes[1,0].set_xlabel('R-Multiple', color='white')\naxes[1,0].set_ylabel('Frequency', color='white')\naxes[1,0].tick_params(colors='white')\n\n# 4. Cumulative P&L\ncumulative_pnl = daily_pnl.cumsum()\naxes[1,1].plot(cumulative_pnl.index, cumulative_pnl.values, color='#9c27b0', linewidth=2)\naxes[1,1].fill_between(cumulative_pnl.index, cumulative_pnl.values, alpha=0.3, color='#9c27b0')\naxes[1,1].set_title('Cumulative P&L', color='white')\naxes[1,1].set_ylabel('Cumulative P&L ($)', color='white')\naxes[1,1].tick_params(colors='white')\n\nplt.tight_layout()\nplt.show()",
       executionCount: 4
     }
   ];
