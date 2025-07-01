@@ -292,7 +292,7 @@ export const Playbooks: React.FC = () => {
           className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Playbooks</option>
-          <option value="high-performance">High Performance (>70%)</option>
+          <option value="high-performance">High Performance (&gt;70%)</option>
           <option value="recent">Recently Updated</option>
         </select>
 
