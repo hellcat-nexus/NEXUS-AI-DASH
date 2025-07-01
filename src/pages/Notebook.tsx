@@ -18,24 +18,25 @@ import {
 } from 'lucide-react';
 import { NotebookCellComponent, NotebookCell } from '../components/NotebookCell';
 
-export const Notebook: React.FC = () => {
-  const [cells, setCells] = useState<NotebookCell[]>(() => {
-    const stored = localStorage.getItem('notebook-cells');
-    if (stored) {
-      try { return JSON.parse(stored); } catch {}
-    }
-    return [
-      {
-        id: '1',
-        type: 'markdown',
-        content: '# NEXUS V5.0 Trading Analysis Notebook\n\nThis notebook provides a comprehensive environment for analyzing trading data, developing strategies, and backtesting algorithms.\n\n## Features\n- **Python Integration**: Full Python environment with trading libraries\n- **SQL Queries**: Direct database access for trade analysis\n- **Visualization**: Advanced charting and plotting capabilities\n- **Real-time Data**: Live market data integration',
-        executionCount: 0
-      },
-      {
-        id: '2',
-        type: 'code',
-        language: 'python',
-        content: `# Import essential trading libraries
+const getInitialNotebookCells = (): NotebookCell[] => {
+  const stored = localStorage.getItem('notebook-cells');
+  if (stored) {
+    try { 
+      return JSON.parse(stored); 
+    } catch {}
+  }
+  return [
+    {
+      id: '1',
+      type: 'markdown',
+      content: '# NEXUS V5.0 Trading Analysis Notebook\n\nThis notebook provides a comprehensive environment for analyzing trading data, developing strategies, and backtesting algorithms.\n\n## Features\n- **Python Integration**: Full Python environment with trading libraries\n- **SQL Queries**: Direct database access for trade analysis\n- **Visualization**: Advanced charting and plotting capabilities\n- **Real-time Data**: Live market data integration',
+      executionCount: 0
+    },
+    {
+      id: '2',
+      type: 'code',
+      language: 'python',
+      content: `# Import essential trading libraries
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,13 +53,13 @@ print("✅ Trading analysis environment initialized")
 print(f"📊 Pandas version: {pd.__version__}")
 print(f"🔢 NumPy version: {np.__version__}")
 print(f"📈 Matplotlib version: {plt.matplotlib.__version__}")`,
-        output: '✅ Trading analysis environment initialized\n📊 Pandas version: 1.5.3\n🔢 NumPy version: 1.24.3\n📈 Matplotlib version: 3.7.1',
-        executionCount: 1
-      },
-      {
-        id: '3',
-        type: 'sql',
-        content: `-- Query recent trading performance
+      output: '✅ Trading analysis environment initialized\n📊 Pandas version: 1.5.3\n🔢 NumPy version: 1.24.3\n📈 Matplotlib version: 3.7.1',
+      executionCount: 1
+    },
+    {
+      id: '3',
+      type: 'sql',
+      content: `-- Query recent trading performance
 SELECT 
     DATE(timestamp) as trade_date,
     symbol,
@@ -71,14 +72,14 @@ FROM trades
 WHERE timestamp >= DATE('now', '-30 days')
 GROUP BY DATE(timestamp), symbol
 ORDER BY trade_date DESC, total_pnl DESC;`,
-        output: 'trade_date    symbol  total_trades  winning_trades  avg_pnl  total_pnl  avg_r_multiple\n2024-03-15    ES      12           8              245.50   2946.00    1.85\n2024-03-15    NQ      8            5              180.25   1442.00    1.92\n2024-03-14    ES      15           9              156.75   2351.25    1.67\n2024-03-14    CL      6            4              89.50    537.00     2.15',
-        executionCount: 2
-      },
-      {
-        id: '4',
-        type: 'code',
-        language: 'python',
-        content: `# Load and analyze trading data
+      output: 'trade_date    symbol  total_trades  winning_trades  avg_pnl  total_pnl  avg_r_multiple\n2024-03-15    ES      12           8              245.50   2946.00    1.85\n2024-03-15    NQ      8            5              180.25   1442.00    1.92\n2024-03-14    ES      15           9              156.75   2351.25    1.67\n2024-03-14    CL      6            4              89.50    537.00     2.15',
+      executionCount: 2
+    },
+    {
+      id: '4',
+      type: 'code',
+      language: 'python',
+      content: `# Load and analyze trading data
 def load_trading_data():
     """Load trading data from the database"""
     # Simulated data for demonstration
@@ -109,13 +110,13 @@ print(f"📈 Loaded {len(df)} trades from {df['date'].min().date()} to {df['date
 print(f"💰 Total P&L: ${df['pnl'].sum():.2f}")
 print(f"🎯 Win Rate: {(df['win'].sum() / len(df) * 100):.1f}%")
 print(f"📊 Average R-Multiple: {df['r_multiple'].mean():.2f}")`,
-        output: '📈 Loaded 592 trades from 2024-01-01 to 2024-03-15\n💰 Total P&L: $28,456.78\n🎯 Win Rate: 64.2%\n📊 Average R-Multiple: 1.85',
-        executionCount: 3
-      },
-      {
-        id: '5',
-        type: 'visualization',
-        content: `# Create comprehensive trading performance dashboard
+      output: '📈 Loaded 592 trades from 2024-01-01 to 2024-03-15\n💰 Total P&L: $28,456.78\n🎯 Win Rate: 64.2%\n📊 Average R-Multiple: 1.85',
+      executionCount: 3
+    },
+    {
+      id: '5',
+      type: 'visualization',
+      content: `# Create comprehensive trading performance dashboard
 fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 fig.suptitle('Trading Performance Dashboard', fontsize=16, color='white')
 
@@ -156,11 +157,13 @@ axes[1,1].tick_params(colors='white')
 
 plt.tight_layout()
 plt.show()`,
-        executionCount: 4
-      }
-    ];
-  });
+      executionCount: 4
+    }
+  ];
+};
 
+export const Notebook: React.FC = () => {
+  const [cells, setCells] = useState<NotebookCell[]>(getInitialNotebookCells());
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
