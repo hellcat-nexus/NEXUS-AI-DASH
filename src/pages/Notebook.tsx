@@ -50,9 +50,9 @@ plt.style.use('dark_background')
 sns.set_palette("husl")
 
 print("✅ Trading analysis environment initialized")
-print(f"📊 Pandas version: {pd.__version__}")
-print(f"🔢 NumPy version: {np.__version__}")
-print(f"📈 Matplotlib version: {plt.matplotlib.__version__}")`,
+print(f"📊 Pandas version: {{pd.__version__}}")
+print(f"🔢 NumPy version: {{np.__version__}}")
+print(f"📈 Matplotlib version: {{plt.matplotlib.__version__}}")`,
       output: '✅ Trading analysis environment initialized\n📊 Pandas version: 1.5.3\n🔢 NumPy version: 1.24.3\n📈 Matplotlib version: 3.7.1',
       executionCount: 1
     },
@@ -93,23 +93,23 @@ def load_trading_data():
             pnl = np.random.normal(50, 150)  # Average $50 profit, $150 std
             r_multiple = pnl / 100 if pnl > 0 else pnl / 50  # Risk multiple
             
-            data.append({
+            data.append({{
                 'date': date,
                 'symbol': np.random.choice(['ES', 'NQ', 'CL', 'GC']),
                 'pnl': pnl,
                 'r_multiple': r_multiple,
                 'strategy': np.random.choice(['Momentum', 'Reversal', 'Breakout']),
                 'win': pnl > 0
-            })
+            }})
     
     return pd.DataFrame(data)
 
 # Load the data
 df = load_trading_data()
-print(f"📈 Loaded {len(df)} trades from {df['date'].min().date()} to {df['date'].max().date()}")
-print(f"💰 Total P&L: ${df['pnl'].sum():.2f}")
-print(f"🎯 Win Rate: {(df['win'].sum() / len(df) * 100):.1f}%")
-print(f"📊 Average R-Multiple: {df['r_multiple'].mean():.2f}")`,
+print(f"📈 Loaded {{len(df)}} trades from {{df['date'].min().date()}} to {{df['date'].max().date()}}")
+print(f"💰 Total P&L: ${{df['pnl'].sum():.2f}}")
+print(f"🎯 Win Rate: {{(df['win'].sum() / len(df) * 100):.1f}}%")
+print(f"📊 Average R-Multiple: {{df['r_multiple'].mean():.2f}}")`,
       output: '📈 Loaded 592 trades from 2024-01-01 to 2024-03-15\n💰 Total P&L: $28,456.78\n🎯 Win Rate: 64.2%\n📊 Average R-Multiple: 1.85',
       executionCount: 3
     },
@@ -129,10 +129,10 @@ axes[0,0].set_ylabel('P&L ($)', color='white')
 axes[0,0].tick_params(colors='white')
 
 # 2. Win Rate by Strategy
-strategy_stats = df.groupby('strategy').agg({
+strategy_stats = df.groupby('strategy').agg({{
     'win': 'mean',
     'pnl': 'count'
-}).round(3)
+}}).round(3)
 strategy_stats.columns = ['Win Rate', 'Trade Count']
 strategy_stats['Win Rate'].plot(kind='bar', ax=axes[0,1], color=['#ff6b6b', '#4ecdc4', '#45b7d1'])
 axes[0,1].set_title('Win Rate by Strategy', color='white')
