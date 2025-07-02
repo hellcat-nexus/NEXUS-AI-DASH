@@ -21,9 +21,51 @@ class NexusNT8Bridge {
         this.nt8Connected = false;
         this.lastNT8Heartbeat = null;
         
+        // Data translation and routing
+        this.dataRoutes = new Map();
+        this.setupDataRoutes();
+        
         this.setupMiddleware();
         this.setupRoutes();
         this.setupWebSocket();
+    }
+
+    setupDataRoutes() {
+        // NinjaTrader 8 data route
+        this.dataRoutes.set('NINJA_TRADER', {
+            endpoint: '/api/dashboard-data',
+            validator: (data) => data.systemVersion && data.market && data.orderFlow,
+            transformer: (data) => ({
+                ...data,
+                source: 'NINJA_TRADER',
+                receivedAt: new Date().toISOString(),
+                dataType: 'REAL_TIME'
+            })
+        });
+
+        // Sierra Chart data route
+        this.dataRoutes.set('SIERRA_CHART', {
+            endpoint: '/api/sierra-data',
+            validator: (data) => data.DateTime && data.Symbol && data.Last,
+            transformer: (data) => ({
+                ...data,
+                source: 'SIERRA_CHART',
+                receivedAt: new Date().toISOString(),
+                dataType: 'REAL_TIME'
+            })
+        });
+
+        // Rithmic data route
+        this.dataRoutes.set('RITHMIC', {
+            endpoint: '/api/rithmic-data',
+            validator: (data) => data.instrument_id && data.last_trade_price,
+            transformer: (data) => ({
+                ...data,
+                source: 'RITHMIC',
+                receivedAt: new Date().toISOString(),
+                dataType: 'REAL_TIME'
+            })
+        });
     }
 
     setupMiddleware() {
@@ -34,11 +76,31 @@ class NexusNT8Bridge {
         this.app.use(express.json({ limit: '10mb' }));
         this.app.use(express.urlencoded({ extended: true }));
         
-        // Request logging
+        // Request logging with data source detection
         this.app.use((req, res, next) => {
-            console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+            const timestamp = new Date().toISOString();
+            console.log(`${timestamp} - ${req.method} ${req.path}`);
+            
+            // Detect data source from request
+            if (req.body && Object.keys(req.body).length > 0) {
+                const detectedSource = this.detectDataSource(req.body);
+                if (detectedSource) {
+                    req.dataSource = detectedSource;
+                    console.log(`📡 Detected data source: ${detectedSource}`);
+                }
+            }
+            
             next();
         });
+    }
+
+    detectDataSource(data) {
+        for (const [source, route] of this.dataRoutes) {
+            if (route.validator(data)) {
+                return source;
+            }
+        }
+        return 'UNKNOWN';
     }
 
     setupRoutes() {
@@ -49,61 +111,31 @@ class NexusNT8Bridge {
                 timestamp: new Date().toISOString(),
                 nt8Connected: this.nt8Connected,
                 connectedClients: this.connectedClients.size,
-                lastDataReceived: this.latestData?.timestamp || null
+                lastDataReceived: this.latestData?.timestamp || null,
+                supportedSources: Array.from(this.dataRoutes.keys())
             });
         });
 
-        // Main data endpoint for NinjaTrader
+        // Universal data endpoint - handles all broker types
         this.app.post('/api/dashboard-data', (req, res) => {
-            try {
-                const data = req.body;
-                
-                // Validate required fields
-                if (!data.timestamp) {
-                    return res.status(400).json({ error: 'Missing timestamp' });
-                }
-
-                // Update connection status
-                this.nt8Connected = true;
-                this.lastNT8Heartbeat = Date.now();
-
-                // Store latest data
-                this.latestData = {
-                    ...data,
-                    receivedAt: new Date().toISOString(),
-                    source: 'NinjaTrader8'
-                };
-
-                // Add to history
-                this.dataHistory.push(this.latestData);
-                if (this.dataHistory.length > this.maxHistorySize) {
-                    this.dataHistory.shift();
-                }
-
-                // Broadcast to all WebSocket clients
-                this.broadcastToClients(this.latestData);
-
-                // Log key metrics
-                console.log(`NT8 Data: Price=${data.market?.currentPrice}, Volume=${data.market?.volume}, Signals=${data.signals?.activeCount}`);
-
-                res.json({ 
-                    status: 'success',
-                    timestamp: new Date().toISOString(),
-                    clientsBroadcast: this.connectedClients.size
-                });
-
-            } catch (error) {
-                console.error('Error processing NT8 data:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
+            this.handleUniversalData(req, res);
         });
 
-        // Get latest data endpoint for dashboard
+        // Specific broker endpoints
+        this.app.post('/api/sierra-data', (req, res) => {
+            this.handleSierraChartData(req, res);
+        });
+
+        this.app.post('/api/rithmic-data', (req, res) => {
+            this.handleRithmicData(req, res);
+        });
+
+        // Get latest data endpoint
         this.app.get('/api/dashboard-data', (req, res) => {
             if (!this.latestData) {
                 return res.json({
                     message: 'No data available',
-                    nt8Connected: this.nt8Connected
+                    connectedSources: this.getConnectedSources()
                 });
             }
 
@@ -114,54 +146,42 @@ class NexusNT8Bridge {
         this.app.get('/api/dashboard-data/history', (req, res) => {
             const limit = parseInt(req.query.limit) || 100;
             const offset = parseInt(req.query.offset) || 0;
+            const source = req.query.source;
             
-            const historySlice = this.dataHistory
+            let filteredHistory = this.dataHistory;
+            if (source) {
+                filteredHistory = this.dataHistory.filter(item => item.source === source);
+            }
+            
+            const historySlice = filteredHistory
                 .slice(-limit - offset, -offset || undefined)
                 .reverse();
 
             res.json({
                 data: historySlice,
-                total: this.dataHistory.length,
+                total: filteredHistory.length,
                 limit,
-                offset
+                offset,
+                sources: this.getConnectedSources()
             });
         });
 
-        // Strategy control endpoints
-        this.app.post('/api/strategies/:strategyName/toggle', (req, res) => {
-            const { strategyName } = req.params;
-            const { enabled } = req.body;
-
-            // This would typically send a command back to NT8
-            // For now, we'll just acknowledge the request
-            console.log(`Strategy ${strategyName} ${enabled ? 'enabled' : 'disabled'}`);
-            
+        // Data source management
+        this.app.get('/api/sources', (req, res) => {
             res.json({
-                strategy: strategyName,
-                enabled,
-                timestamp: new Date().toISOString()
+                supported: Array.from(this.dataRoutes.keys()),
+                connected: this.getConnectedSources(),
+                lastActivity: this.getSourceActivity()
             });
         });
 
-        // Export data endpoint
-        this.app.get('/api/export/csv', (req, res) => {
-            try {
-                const csvData = this.generateCSV();
-                res.setHeader('Content-Type', 'text/csv');
-                res.setHeader('Content-Disposition', 'attachment; filename=nexus_data.csv');
-                res.send(csvData);
-            } catch (error) {
-                console.error('Error generating CSV:', error);
-                res.status(500).json({ error: 'Failed to generate CSV' });
-            }
-        });
-
-        // Configuration endpoints
+        // Configuration endpoint
         this.app.get('/api/config', (req, res) => {
             res.json({
                 maxHistorySize: this.maxHistorySize,
                 port: this.port,
-                version: '5.0.1'
+                version: '5.0.1',
+                dataRoutes: Array.from(this.dataRoutes.keys())
             });
         });
 
@@ -171,7 +191,6 @@ class NexusNT8Bridge {
             if (maxHistorySize && maxHistorySize > 0) {
                 this.maxHistorySize = maxHistorySize;
                 
-                // Trim history if needed
                 if (this.dataHistory.length > this.maxHistorySize) {
                     this.dataHistory = this.dataHistory.slice(-this.maxHistorySize);
                 }
@@ -179,6 +198,148 @@ class NexusNT8Bridge {
 
             res.json({ message: 'Configuration updated' });
         });
+    }
+
+    handleUniversalData(req, res) {
+        try {
+            const data = req.body;
+            const source = req.dataSource || 'NINJA_TRADER'; // Default to NT8
+            
+            // Validate data
+            if (!data.timestamp && !data.DateTime) {
+                return res.status(400).json({ error: 'Missing timestamp' });
+            }
+
+            // Transform data based on source
+            const route = this.dataRoutes.get(source);
+            const transformedData = route ? route.transformer(data) : {
+                ...data,
+                source: 'UNKNOWN',
+                receivedAt: new Date().toISOString()
+            };
+
+            // Update connection status
+            if (source === 'NINJA_TRADER') {
+                this.nt8Connected = true;
+                this.lastNT8Heartbeat = Date.now();
+            }
+
+            // Store and broadcast data
+            this.storeAndBroadcastData(transformedData, source);
+
+            // Log key metrics
+            this.logDataMetrics(transformedData, source);
+
+            res.json({ 
+                status: 'success',
+                timestamp: new Date().toISOString(),
+                source: source,
+                clientsBroadcast: this.connectedClients.size
+            });
+
+        } catch (error) {
+            console.error('Error processing universal data:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    handleSierraChartData(req, res) {
+        try {
+            const data = req.body;
+            
+            const transformedData = {
+                ...data,
+                source: 'SIERRA_CHART',
+                receivedAt: new Date().toISOString(),
+                dataType: 'REAL_TIME'
+            };
+
+            this.storeAndBroadcastData(transformedData, 'SIERRA_CHART');
+            
+            console.log(`Sierra Chart Data: ${data.Symbol} @ ${data.Last}, Volume: ${data.Volume}`);
+
+            res.json({ 
+                status: 'success',
+                timestamp: new Date().toISOString(),
+                source: 'SIERRA_CHART'
+            });
+
+        } catch (error) {
+            console.error('Error processing Sierra Chart data:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    handleRithmicData(req, res) {
+        try {
+            const data = req.body;
+            
+            const transformedData = {
+                ...data,
+                source: 'RITHMIC',
+                receivedAt: new Date().toISOString(),
+                dataType: 'REAL_TIME'
+            };
+
+            this.storeAndBroadcastData(transformedData, 'RITHMIC');
+            
+            console.log(`Rithmic Data: ${data.instrument_id} @ ${data.last_trade_price}`);
+
+            res.json({ 
+                status: 'success',
+                timestamp: new Date().toISOString(),
+                source: 'RITHMIC'
+            });
+
+        } catch (error) {
+            console.error('Error processing Rithmic data:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    storeAndBroadcastData(data, source) {
+        // Store latest data
+        this.latestData = data;
+
+        // Add to history
+        this.dataHistory.push(data);
+        if (this.dataHistory.length > this.maxHistorySize) {
+            this.dataHistory.shift();
+        }
+
+        // Broadcast to all WebSocket clients
+        this.broadcastToClients(data);
+    }
+
+    logDataMetrics(data, source) {
+        switch (source) {
+            case 'NINJA_TRADER':
+                console.log(`NT8 Data: Price=${data.market?.currentPrice}, Volume=${data.market?.volume}, Signals=${data.signals?.activeCount}`);
+                break;
+            case 'SIERRA_CHART':
+                console.log(`Sierra Data: ${data.Symbol} @ ${data.Last}, Volume=${data.Volume}`);
+                break;
+            case 'RITHMIC':
+                console.log(`Rithmic Data: ${data.instrument_id} @ ${data.last_trade_price}`);
+                break;
+            default:
+                console.log(`Unknown source data received: ${source}`);
+        }
+    }
+
+    getConnectedSources() {
+        const sources = [];
+        if (this.nt8Connected) sources.push('NINJA_TRADER');
+        // Add logic for other sources based on recent activity
+        return sources;
+    }
+
+    getSourceActivity() {
+        return {
+            NINJA_TRADER: this.lastNT8Heartbeat,
+            SIERRA_CHART: null, // Would track last Sierra Chart data
+            RITHMIC: null // Would track last Rithmic data
+        };
     }
 
     setupWebSocket() {
@@ -200,7 +361,7 @@ class NexusNT8Bridge {
             ws.send(JSON.stringify({
                 type: 'connection_status',
                 clientId,
-                nt8Connected: this.nt8Connected,
+                connectedSources: this.getConnectedSources(),
                 timestamp: new Date().toISOString()
             }));
 
@@ -232,13 +393,15 @@ class NexusNT8Bridge {
                 break;
                 
             case 'subscribe':
-                // Handle subscription to specific data streams
                 console.log(`Client ${clientId} subscribed to: ${data.streams}`);
                 break;
                 
-            case 'strategy_command':
-                // Forward strategy commands to NT8 (if connected)
-                console.log(`Strategy command from ${clientId}:`, data);
+            case 'get_sources':
+                ws.send(JSON.stringify({
+                    type: 'sources_response',
+                    sources: this.getConnectedSources(),
+                    activity: this.getSourceActivity()
+                }));
                 break;
                 
             default:
@@ -268,48 +431,6 @@ class NexusNT8Bridge {
         }
     }
 
-    generateCSV() {
-        if (this.dataHistory.length === 0) {
-            return 'No data available';
-        }
-
-        const headers = [
-            'timestamp',
-            'currentPrice',
-            'volume',
-            'cumulativeDelta',
-            'bidVolume',
-            'askVolume',
-            'dailyPnL',
-            'portfolioHeat',
-            'activeSignals',
-            'longSignals',
-            'shortSignals',
-            'totalConfidence',
-            'mqScore',
-            'marketRegime'
-        ];
-
-        const rows = this.dataHistory.map(data => [
-            data.timestamp,
-            data.market?.currentPrice || '',
-            data.market?.volume || '',
-            data.market?.cumulativeDelta || '',
-            data.orderFlow?.bidVolume || '',
-            data.orderFlow?.askVolume || '',
-            data.performance?.dailyPnL || '',
-            data.performance?.portfolioHeat || '',
-            data.signals?.activeCount || '',
-            data.signals?.longSignals || '',
-            data.signals?.shortSignals || '',
-            data.signals?.totalConfidence || '',
-            data.mqscore?.OverallScore || '',
-            data.mqscore?.Regime || ''
-        ]);
-
-        return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    }
-
     startConnectionMonitor() {
         setInterval(() => {
             const now = Date.now();
@@ -323,7 +444,7 @@ class NexusNT8Bridge {
                     // Notify all clients
                     this.broadcastToClients({
                         type: 'connection_status',
-                        nt8Connected: false,
+                        connectedSources: this.getConnectedSources(),
                         timestamp: new Date().toISOString()
                     });
                 }
@@ -336,16 +457,22 @@ class NexusNT8Bridge {
             console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                    NEXUS V5.0 NT8 Bridge                    ║
+║                  Universal Data Translator                   ║
 ║                                                              ║
 ║  🚀 Server running on http://localhost:${this.port}                ║
 ║  📡 WebSocket server active                                  ║
-║  🔗 Ready for NinjaTrader 8 connection                      ║
+║  🔗 Multi-broker support enabled                            ║
 ║                                                              ║
-║  Endpoints:                                                  ║
-║  • POST /api/dashboard-data (NT8 data input)               ║
-║  • GET  /api/dashboard-data (Latest data)                  ║
-║  • GET  /health (Health check)                             ║
-║  • WS   / (WebSocket connection)                            ║
+║  Supported Sources:                                          ║
+║  • NinjaTrader 8 (POST /api/dashboard-data)                ║
+║  • Sierra Chart (POST /api/sierra-data)                    ║
+║  • Rithmic (POST /api/rithmic-data)                        ║
+║                                                              ║
+║  Features:                                                   ║
+║  • Real-time data translation                               ║
+║  • Universal data format                                     ║
+║  • Intelligent source detection                             ║
+║  • WebSocket broadcasting                                    ║
 ╚══════════════════════════════════════════════════════════════╝
             `);
             
