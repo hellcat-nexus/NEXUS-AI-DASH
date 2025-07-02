@@ -14,9 +14,13 @@ import {
   Cpu,
   Terminal,
   PlayCircle,
-  Square
+  Square,
+  Zap,
+  Monitor,
+  RefreshCw
 } from 'lucide-react';
 import { NotebookCellComponent, NotebookCell } from '../components/NotebookCell';
+import { ConfigModal } from '../components/ConfigModal';
 
 const getInitialNotebookCells = (): NotebookCell[] => {
   const stored = localStorage.getItem('notebook-cells');
@@ -36,7 +40,7 @@ const getInitialNotebookCells = (): NotebookCell[] => {
       id: '2',
       type: 'code',
       language: 'python',
-      content: "# Import essential trading libraries\nimport pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nfrom datetime import datetime, timedelta\nimport warnings\nwarnings.filterwarnings('ignore')\n\n# Configure plotting\nplt.style.use('dark_background')\nsns.set_palette(\"husl\")\n\nprint(\"✅ Trading analysis environment initialized\")\nprint(f\"📊 Pandas version: {pd.__version__}\")\nprint(f\"🔢 NumPy version: {np.__version__}\")\nprint(f\"📈 Matplotlib version: {plt.matplotlib.__version__}\")",
+      content: "# Import essential trading libraries\nimport pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nimport seaborn as sns\nfrom datetime import datetime, timedelta\nimport warnings\nwarnings.filterwarnings('ignore')\n\n# Configure plotting\nplt.style.use('dark_background')\nsns.set_palette(\"husl\")\n\nprint(\"✅ Trading analysis environment initialized\")\nprint(f\"📊 Pandas version: {{pd.__version__}}\")\nprint(f\"🔢 NumPy version: {{np.__version__}}\")\nprint(f\"📈 Matplotlib version: {{plt.matplotlib.__version__}}\")",
       output: '✅ Trading analysis environment initialized\n📊 Pandas version: 1.5.3\n🔢 NumPy version: 1.24.3\n📈 Matplotlib version: 3.7.1',
       executionCount: 1
     },
@@ -63,14 +67,14 @@ ORDER BY trade_date DESC, total_pnl DESC;`,
       id: '4',
       type: 'code',
       language: 'python',
-      content: "# Load and analyze trading data\ndef load_trading_data():\n    \"\"\"Load trading data from the database\"\"\"\n    # Simulated data for demonstration\n    dates = pd.date_range('2024-01-01', '2024-03-15', freq='D')\n    \n    data = []\n    for date in dates:\n        # Generate realistic trading data\n        num_trades = np.random.poisson(8)  # Average 8 trades per day\n        for _ in range(num_trades):\n            pnl = np.random.normal(50, 150)  # Average $50 profit, $150 std\n            r_multiple = pnl / 100 if pnl > 0 else pnl / 50  # Risk multiple\n            \n            data.append({\n                'date': date,\n                'symbol': np.random.choice(['ES', 'NQ', 'CL', 'GC']),\n                'pnl': pnl,\n                'r_multiple': r_multiple,\n                'strategy': np.random.choice(['Momentum', 'Reversal', 'Breakout']),\n                'win': pnl > 0\n            })\n    \n    return pd.DataFrame(data)\n\n# Load the data\ndf = load_trading_data()\nprint(f\"📈 Loaded {len(df)} trades from {df['date'].min().date()} to {df['date'].max().date()}\")\nprint(f\"💰 Total P&L: ${df['pnl'].sum():.2f}\")\nprint(f\"🎯 Win Rate: {(df['win'].sum() / len(df) * 100):.1f}%\")\nprint(f\"📊 Average R-Multiple: {df['r_multiple'].mean():.2f}\")",
+      content: "# Load and analyze trading data\ndef load_trading_data():\n    \"\"\"Load trading data from the database\"\"\"\n    # Simulated data for demonstration\n    dates = pd.date_range('2024-01-01', '2024-03-15', freq='D')\n    \n    data = []\n    for date in dates:\n        # Generate realistic trading data\n        num_trades = np.random.poisson(8)  # Average 8 trades per day\n        for _ in range(num_trades):\n            pnl = np.random.normal(50, 150)  # Average $50 profit, $150 std\n            r_multiple = pnl / 100 if pnl > 0 else pnl / 50  # Risk multiple\n            \n            data.append({{\n                'date': date,\n                'symbol': np.random.choice(['ES', 'NQ', 'CL', 'GC']),\n                'pnl': pnl,\n                'r_multiple': r_multiple,\n                'strategy': np.random.choice(['Momentum', 'Reversal', 'Breakout']),\n                'win': pnl > 0\n            }})\n    \n    return pd.DataFrame(data)\n\n# Load the data\ndf = load_trading_data()\nprint(f\"📈 Loaded {{len(df)}} trades from {{df['date'].min().date()}} to {{df['date'].max().date()}}\")\nprint(f\"💰 Total P&L: ${{df['pnl'].sum():.2f}}\")\nprint(f\"🎯 Win Rate: {{(df['win'].sum() / len(df) * 100):.1f}}%\")\nprint(f\"📊 Average R-Multiple: {{df['r_multiple'].mean():.2f}}\")",
       output: '📈 Loaded 592 trades from 2024-01-01 to 2024-03-15\n💰 Total P&L: $28,456.78\n🎯 Win Rate: 64.2%\n📊 Average R-Multiple: 1.85',
       executionCount: 3
     },
     {
       id: '5',
       type: 'visualization',
-      content: "# Create comprehensive trading performance dashboard\nfig, axes = plt.subplots(2, 2, figsize=(15, 10))\nfig.suptitle('Trading Performance Dashboard', fontsize=16, color='white')\n\n# 1. Daily P&L\ndaily_pnl = df.groupby('date')['pnl'].sum()\naxes[0,0].plot(daily_pnl.index, daily_pnl.values, color='#00ff88', linewidth=2)\naxes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.7)\naxes[0,0].set_title('Daily P&L', color='white')\naxes[0,0].set_ylabel('P&L ($)', color='white')\naxes[0,0].tick_params(colors='white')\n\n# 2. Win Rate by Strategy\nstrategy_stats = df.groupby('strategy').agg({\n    'win': 'mean',\n    'pnl': 'count'\n}).round(3)\nstrategy_stats.columns = ['Win Rate', 'Trade Count']\nstrategy_stats['Win Rate'].plot(kind='bar', ax=axes[0,1], color=['#ff6b6b', '#4ecdc4', '#45b7d1'])\naxes[0,1].set_title('Win Rate by Strategy', color='white')\naxes[0,1].set_ylabel('Win Rate', color='white')\naxes[0,1].tick_params(colors='white')\n\n# 3. R-Multiple Distribution\naxes[1,0].hist(df['r_multiple'], bins=30, color='#ffa726', alpha=0.7, edgecolor='white')\naxes[1,0].axvline(x=0, color='red', linestyle='--', alpha=0.7)\naxes[1,0].set_title('R-Multiple Distribution', color='white')\naxes[1,0].set_xlabel('R-Multiple', color='white')\naxes[1,0].set_ylabel('Frequency', color='white')\naxes[1,0].tick_params(colors='white')\n\n# 4. Cumulative P&L\ncumulative_pnl = daily_pnl.cumsum()\naxes[1,1].plot(cumulative_pnl.index, cumulative_pnl.values, color='#9c27b0', linewidth=2)\naxes[1,1].fill_between(cumulative_pnl.index, cumulative_pnl.values, alpha=0.3, color='#9c27b0')\naxes[1,1].set_title('Cumulative P&L', color='white')\naxes[1,1].set_ylabel('Cumulative P&L ($)', color='white')\naxes[1,1].tick_params(colors='white')\n\nplt.tight_layout()\nplt.show()",
+      content: "# Create comprehensive trading performance dashboard\nfig, axes = plt.subplots(2, 2, figsize=(15, 10))\nfig.suptitle('Trading Performance Dashboard', fontsize=16, color='white')\n\n# 1. Daily P&L\ndaily_pnl = df.groupby('date')['pnl'].sum()\naxes[0,0].plot(daily_pnl.index, daily_pnl.values, color='#00ff88', linewidth=2)\naxes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.7)\naxes[0,0].set_title('Daily P&L', color='white')\naxes[0,0].set_ylabel('P&L ($)', color='white')\naxes[0,0].tick_params(colors='white')\n\n# 2. Win Rate by Strategy\nstrategy_stats = df.groupby('strategy').agg({{\n    'win': 'mean',\n    'pnl': 'count'\n}}).round(3)\nstrategy_stats.columns = ['Win Rate', 'Trade Count']\nstrategy_stats['Win Rate'].plot(kind='bar', ax=axes[0,1], color=['#ff6b6b', '#4ecdc4', '#45b7d1'])\naxes[0,1].set_title('Win Rate by Strategy', color='white')\naxes[0,1].set_ylabel('Win Rate', color='white')\naxes[0,1].tick_params(colors='white')\n\n# 3. R-Multiple Distribution\naxes[1,0].hist(df['r_multiple'], bins=30, color='#ffa726', alpha=0.7, edgecolor='white')\naxes[1,0].axvline(x=0, color='red', linestyle='--', alpha=0.7)\naxes[1,0].set_title('R-Multiple Distribution', color='white')\naxes[1,0].set_xlabel('R-Multiple', color='white')\naxes[1,0].set_ylabel('Frequency', color='white')\naxes[1,0].tick_params(colors='white')\n\n# 4. Cumulative P&L\ncumulative_pnl = daily_pnl.cumsum()\naxes[1,1].plot(cumulative_pnl.index, cumulative_pnl.values, color='#9c27b0', linewidth=2)\naxes[1,1].fill_between(cumulative_pnl.index, cumulative_pnl.values, alpha=0.3, color='#9c27b0')\naxes[1,1].set_title('Cumulative P&L', color='white')\naxes[1,1].set_ylabel('Cumulative P&L ($)', color='white')\naxes[1,1].tick_params(colors='white')\n\nplt.tight_layout()\nplt.show()",
       executionCount: 4
     }
   ];
@@ -80,12 +84,40 @@ export const Notebook: React.FC = () => {
   const [cells, setCells] = useState<NotebookCell[]>(getInitialNotebookCells());
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [kernelStatus, setKernelStatus] = useState<'idle' | 'busy' | 'disconnected'>('idle');
+  const [notebookConfig, setNotebookConfig] = useState({
+    pythonPath: '/usr/bin/python3',
+    kernelTimeout: 30000,
+    maxOutputLines: 1000,
+    autoSave: true,
+    autoSaveInterval: 30000,
+    enableCodeCompletion: true,
+    enableSyntaxHighlighting: true,
+    theme: 'dark',
+    fontSize: 14,
+    tabSize: 4,
+    enableLineNumbers: true,
+    enableMinimap: false,
+    enableWordWrap: true
+  });
 
   useEffect(() => {
     localStorage.setItem('notebook-cells', JSON.stringify(cells));
   }, [cells]);
+
+  useEffect(() => {
+    // Load notebook configuration
+    const stored = localStorage.getItem('nexus-notebook-config');
+    if (stored) {
+      try {
+        setNotebookConfig(prev => ({ ...prev, ...JSON.parse(stored) }));
+      } catch (error) {
+        console.error('Failed to load notebook config:', error);
+      }
+    }
+  }, []);
 
   const addCell = (type: NotebookCell['type']) => {
     const newCell: NotebookCell = {
@@ -153,14 +185,21 @@ export const Notebook: React.FC = () => {
     setKernelStatus('busy');
     updateCell(cellId, { isRunning: true });
 
-    // Simulate execution
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    // Simulate execution with realistic timing
+    const executionTime = 1000 + Math.random() * 3000;
+    await new Promise(resolve => setTimeout(resolve, executionTime));
 
     let output = '';
     if (cell.type === 'code') {
-      output = `Executed ${cell.language || 'Python'} code successfully.\nOutput would appear here in a real environment.`;
+      if (cell.language === 'python') {
+        output = `Executed Python code successfully.\n✅ Cell completed in ${(executionTime/1000).toFixed(2)}s\n📊 Output would appear here in a real environment.`;
+      } else {
+        output = `Executed ${cell.language || 'code'} successfully.\nOutput would appear here.`;
+      }
     } else if (cell.type === 'sql') {
-      output = 'Query executed successfully.\nResults would appear here.';
+      output = 'Query executed successfully.\n✅ 156 rows returned\n📊 Results would appear here.';
+    } else if (cell.type === 'visualization') {
+      output = '📈 Chart generated successfully\n🎨 Visualization would render here';
     }
 
     updateCell(cellId, { 
@@ -174,7 +213,7 @@ export const Notebook: React.FC = () => {
   const runAllCells = async () => {
     setIsRunningAll(true);
     for (const cell of cells) {
-      if (cell.type === 'code' || cell.type === 'sql') {
+      if (cell.type === 'code' || cell.type === 'sql' || cell.type === 'visualization') {
         await executeCell(cell.id);
       }
     }
@@ -193,7 +232,8 @@ export const Notebook: React.FC = () => {
         language_info: {
           name: "python",
           version: "3.9.0"
-        }
+        },
+        nexus_config: notebookConfig
       },
       nbformat: 4,
       nbformat_minor: 4
@@ -208,6 +248,30 @@ export const Notebook: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleConfigSave = (settings: any) => {
+    const newConfig = {
+      ...notebookConfig,
+      ...settings.notebook
+    };
+    setNotebookConfig(newConfig);
+    localStorage.setItem('nexus-notebook-config', JSON.stringify(newConfig));
+    console.log('📝 Notebook configuration saved:', newConfig);
+  };
+
+  const restartKernel = () => {
+    setKernelStatus('disconnected');
+    setTimeout(() => {
+      setKernelStatus('idle');
+      // Clear all cell outputs
+      setCells(prev => prev.map(cell => ({
+        ...cell,
+        output: undefined,
+        executionCount: 0,
+        isRunning: false
+      })));
+    }, 2000);
   };
 
   return (
@@ -297,6 +361,7 @@ export const Notebook: React.FC = () => {
               onClick={runAllCells}
               disabled={isRunningAll}
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-lg transition-colors"
+              title="Run All Cells"
             >
               {isRunningAll ? (
                 <Square className="w-4 h-4" />
@@ -304,6 +369,14 @@ export const Notebook: React.FC = () => {
                 <PlayCircle className="w-4 h-4" />
               )}
               <span>{isRunningAll ? 'Running...' : 'Run All'}</span>
+            </button>
+
+            <button 
+              onClick={restartKernel}
+              className="p-2 text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors"
+              title="Restart Kernel"
+            >
+              <RefreshCw className="w-4 h-4" />
             </button>
 
             <button 
@@ -322,16 +395,33 @@ export const Notebook: React.FC = () => {
               <Download className="w-4 h-4" />
             </button>
 
-            <button className="p-2 text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors">
+            <button 
+              className="p-2 text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors"
+              title="Import Notebook"
+            >
               <Upload className="w-4 h-4" />
             </button>
 
-            <button className="p-2 text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowConfig(true)}
+              className="p-2 text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors"
+              title="Notebook Settings"
+            >
               <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
+
+      {/* Configuration Status */}
+      {notebookConfig.autoSave && (
+        <div className="mb-4 p-3 bg-green-900/20 border border-green-800 rounded-lg">
+          <div className="flex items-center space-x-2 text-green-400 text-sm">
+            <Save className="w-4 h-4" />
+            <span>Auto-save enabled - Notebook saved automatically every {notebookConfig.autoSaveInterval / 1000}s</span>
+          </div>
+        </div>
+      )}
 
       {/* Notebook Cells */}
       <div className="space-y-4">
@@ -364,6 +454,17 @@ export const Notebook: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Configuration Modal */}
+      <ConfigModal
+        isOpen={showConfig}
+        onClose={() => setShowConfig(false)}
+        componentType="notebook"
+        initialSettings={{
+          notebook: notebookConfig
+        }}
+        onSave={handleConfigSave}
+      />
     </div>
   );
 };
