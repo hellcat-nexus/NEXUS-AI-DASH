@@ -1,27 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Settings, Database, Wifi, Bell, Palette, Shield } from 'lucide-react';
+import { X, Save, Settings, Database, Wifi, Bell, Palette, Shield, Monitor, Server, Zap } from 'lucide-react';
 
 interface ConfigSettings {
   // Data Source Settings
   dataSources: {
-    ninjaTrader: {
+    ninjaTrader?: {
       enabled: boolean;
       endpoint: string;
       port: number;
       autoReconnect: boolean;
+      heartbeatInterval: number;
+      maxReconnectAttempts: number;
+      dataBufferSize: number;
+      compressionEnabled: boolean;
+      encryptionEnabled: boolean;
+      logLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
     };
-    sierraChart: {
+    sierraChart?: {
       enabled: boolean;
       endpoint: string;
       port: number;
       autoReconnect: boolean;
+      dtcProtocol: boolean;
+      acsil: boolean;
+      dataBufferSize: number;
+      logLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
     };
-    rithmic: {
+    rithmic?: {
       enabled: boolean;
       apiKey: string;
       environment: 'test' | 'live';
       autoReconnect: boolean;
+      encryptionEnabled: boolean;
+      heartbeatInterval: number;
+      maxReconnectAttempts: number;
+      logLevel: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
     };
+    [key: string]: any;
   };
   
   // Display Settings
@@ -31,6 +46,8 @@ interface ConfigSettings {
     showAnimations: boolean;
     compactMode: boolean;
     showTooltips: boolean;
+    autoScale: boolean;
+    gridLines: boolean;
   };
   
   // Alert Settings
@@ -41,6 +58,8 @@ interface ConfigSettings {
     volumeAlerts: boolean;
     positionAlerts: boolean;
     strategyAlerts: boolean;
+    connectionAlerts: boolean;
+    riskAlerts: boolean;
   };
   
   // Risk Settings
@@ -49,6 +68,8 @@ interface ConfigSettings {
     maxDailyLoss: number;
     autoStopLoss: boolean;
     riskPerTrade: number;
+    portfolioHeatLimit: number;
+    marginCallThreshold: number;
   };
   
   // Strategy Settings
@@ -58,6 +79,15 @@ interface ConfigSettings {
       weight: number;
       parameters: Record<string, any>;
     };
+  };
+
+  // Advanced Settings
+  advanced: {
+    dataRetention: number;
+    performanceMode: boolean;
+    debugMode: boolean;
+    apiTimeout: number;
+    maxConcurrentConnections: number;
   };
 }
 
@@ -78,32 +108,15 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('data-sources');
   const [settings, setSettings] = useState<ConfigSettings>({
-    dataSources: {
-      ninjaTrader: {
-        enabled: true,
-        endpoint: 'localhost',
-        port: 8080,
-        autoReconnect: true,
-      },
-      sierraChart: {
-        enabled: false,
-        endpoint: 'localhost',
-        port: 11099,
-        autoReconnect: true,
-      },
-      rithmic: {
-        enabled: false,
-        apiKey: '',
-        environment: 'test',
-        autoReconnect: true,
-      },
-    },
+    dataSources: {},
     display: {
       theme: 'dark',
       refreshRate: 1000,
       showAnimations: true,
       compactMode: false,
       showTooltips: true,
+      autoScale: true,
+      gridLines: true,
     },
     alerts: {
       enabled: true,
@@ -112,23 +125,38 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       volumeAlerts: true,
       positionAlerts: true,
       strategyAlerts: true,
+      connectionAlerts: true,
+      riskAlerts: true,
     },
     risk: {
       maxPositionSize: 10,
       maxDailyLoss: 1000,
       autoStopLoss: true,
       riskPerTrade: 2,
+      portfolioHeatLimit: 80,
+      marginCallThreshold: 25,
     },
     strategies: {
       'Momentum': { enabled: true, weight: 0.3, parameters: {} },
       'Reversal': { enabled: true, weight: 0.25, parameters: {} },
       'Breakout': { enabled: true, weight: 0.45, parameters: {} },
     },
+    advanced: {
+      dataRetention: 30,
+      performanceMode: false,
+      debugMode: false,
+      apiTimeout: 5000,
+      maxConcurrentConnections: 5,
+    },
   });
 
   useEffect(() => {
     if (initialSettings) {
-      setSettings(prev => ({ ...prev, ...initialSettings }));
+      setSettings(prev => ({ 
+        ...prev, 
+        ...initialSettings,
+        dataSources: { ...prev.dataSources, ...initialSettings.dataSources }
+      }));
     }
   }, [initialSettings]);
 
@@ -159,6 +187,9 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       let current: any = newSettings;
       
       for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) {
+          current[keys[i]] = {};
+        }
         current = current[keys[i]];
       }
       
@@ -169,23 +200,33 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   if (!isOpen) return null;
 
+  const getBrokerIcon = (type: string) => {
+    switch (type) {
+      case 'ninja': return <Monitor className="w-4 h-4" />;
+      case 'sierra': return <Server className="w-4 h-4" />;
+      case 'rithmic': return <Zap className="w-4 h-4" />;
+      default: return <Database className="w-4 h-4" />;
+    }
+  };
+
   const tabs = [
     { id: 'data-sources', label: 'Data Sources', icon: Database },
     { id: 'display', label: 'Display', icon: Palette },
     { id: 'alerts', label: 'Alerts', icon: Bell },
     { id: 'risk', label: 'Risk', icon: Shield },
     { id: 'strategies', label: 'Strategies', icon: Settings },
+    { id: 'advanced', label: 'Advanced', icon: Wifi },
   ];
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-800">
           <div className="flex items-center space-x-3">
             <Settings className="w-6 h-6 text-blue-400" />
             <h2 className="text-xl font-bold text-white">
-              {componentType} Configuration
+              {componentType.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Configuration
             </h2>
           </div>
           <button
@@ -230,116 +271,260 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                 <div className="space-y-6">
                   <h3 className="text-lg font-semibold text-white">Data Source Configuration</h3>
                   
-                  {/* NinjaTrader Settings */}
-                  <div className="bg-gray-800 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-white font-medium">NinjaTrader 8</h4>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={settings.dataSources.ninjaTrader.enabled}
-                          onChange={(e) => updateSetting('dataSources.ninjaTrader.enabled', e.target.checked)}
-                          className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-gray-400">Enabled</span>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">Endpoint</label>
-                        <input
-                          type="text"
-                          value={settings.dataSources.ninjaTrader.endpoint}
-                          onChange={(e) => updateSetting('dataSources.ninjaTrader.endpoint', e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                        />
+                  {/* Broker-specific settings */}
+                  {componentType.includes('ninja') && (
+                    <div className="bg-gray-800 rounded-lg p-6">
+                      <div className="flex items-center space-x-3 mb-6">
+                        <Monitor className="w-6 h-6 text-purple-400" />
+                        <h4 className="text-white font-medium text-lg">NinjaTrader 8 Settings</h4>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">Port</label>
-                        <input
-                          type="number"
-                          value={settings.dataSources.ninjaTrader.port}
-                          onChange={(e) => updateSetting('dataSources.ninjaTrader.port', parseInt(e.target.value))}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                        />
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Endpoint</label>
+                            <input
+                              type="text"
+                              value={settings.dataSources.ninjaTrader?.endpoint || 'localhost'}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.endpoint', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">NTI Port</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.ninjaTrader?.port || 8080}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.port', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Heartbeat Interval (seconds)</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.ninjaTrader?.heartbeatInterval || 30}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.heartbeatInterval', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Max Reconnect Attempts</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.ninjaTrader?.maxReconnectAttempts || 5}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.maxReconnectAttempts', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Data Buffer Size</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.ninjaTrader?.dataBufferSize || 1000}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.dataBufferSize', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Log Level</label>
+                            <select
+                              value={settings.dataSources.ninjaTrader?.logLevel || 'INFO'}
+                              onChange={(e) => updateSetting('dataSources.ninjaTrader.logLevel', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            >
+                              <option value="DEBUG">Debug</option>
+                              <option value="INFO">Info</option>
+                              <option value="WARN">Warning</option>
+                              <option value="ERROR">Error</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 space-y-3">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.ninjaTrader?.autoReconnect ?? true}
+                            onChange={(e) => updateSetting('dataSources.ninjaTrader.autoReconnect', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Auto-reconnect on disconnect</span>
+                        </label>
+                        
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.ninjaTrader?.compressionEnabled ?? true}
+                            onChange={(e) => updateSetting('dataSources.ninjaTrader.compressionEnabled', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Enable data compression</span>
+                        </label>
+                        
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.ninjaTrader?.encryptionEnabled ?? false}
+                            onChange={(e) => updateSetting('dataSources.ninjaTrader.encryptionEnabled', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Enable encryption (SSL/TLS)</span>
+                        </label>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Sierra Chart Settings */}
-                  <div className="bg-gray-800 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-white font-medium">Sierra Chart</h4>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={settings.dataSources.sierraChart.enabled}
-                          onChange={(e) => updateSetting('dataSources.sierraChart.enabled', e.target.checked)}
-                          className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-gray-400">Enabled</span>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">Endpoint</label>
-                        <input
-                          type="text"
-                          value={settings.dataSources.sierraChart.endpoint}
-                          onChange={(e) => updateSetting('dataSources.sierraChart.endpoint', e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                        />
+                  {componentType.includes('sierra') && (
+                    <div className="bg-gray-800 rounded-lg p-6">
+                      <div className="flex items-center space-x-3 mb-6">
+                        <Server className="w-6 h-6 text-blue-400" />
+                        <h4 className="text-white font-medium text-lg">Sierra Chart Settings</h4>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">Port</label>
-                        <input
-                          type="number"
-                          value={settings.dataSources.sierraChart.port}
-                          onChange={(e) => updateSetting('dataSources.sierraChart.port', parseInt(e.target.value))}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                        />
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">DTC Server Endpoint</label>
+                            <input
+                              type="text"
+                              value={settings.dataSources.sierraChart?.endpoint || 'localhost'}
+                              onChange={(e) => updateSetting('dataSources.sierraChart.endpoint', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">DTC Port</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.sierraChart?.port || 11099}
+                              onChange={(e) => updateSetting('dataSources.sierraChart.port', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Data Buffer Size</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.sierraChart?.dataBufferSize || 1000}
+                              onChange={(e) => updateSetting('dataSources.sierraChart.dataBufferSize', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Log Level</label>
+                            <select
+                              value={settings.dataSources.sierraChart?.logLevel || 'INFO'}
+                              onChange={(e) => updateSetting('dataSources.sierraChart.logLevel', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            >
+                              <option value="DEBUG">Debug</option>
+                              <option value="INFO">Info</option>
+                              <option value="WARN">Warning</option>
+                              <option value="ERROR">Error</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 space-y-3">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.sierraChart?.dtcProtocol ?? true}
+                            onChange={(e) => updateSetting('dataSources.sierraChart.dtcProtocol', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Enable DTC Protocol</span>
+                        </label>
+                        
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.sierraChart?.acsil ?? true}
+                            onChange={(e) => updateSetting('dataSources.sierraChart.acsil', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Enable ACSIL Interface</span>
+                        </label>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Rithmic Settings */}
-                  <div className="bg-gray-800 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-white font-medium">Rithmic</h4>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={settings.dataSources.rithmic.enabled}
-                          onChange={(e) => updateSetting('dataSources.rithmic.enabled', e.target.checked)}
-                          className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-gray-400">Enabled</span>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">API Key</label>
-                        <input
-                          type="password"
-                          value={settings.dataSources.rithmic.apiKey}
-                          onChange={(e) => updateSetting('dataSources.rithmic.apiKey', e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                          placeholder="Enter API key..."
-                        />
+                  {componentType.includes('rithmic') && (
+                    <div className="bg-gray-800 rounded-lg p-6">
+                      <div className="flex items-center space-x-3 mb-6">
+                        <Zap className="w-6 h-6 text-orange-400" />
+                        <h4 className="text-white font-medium text-lg">Rithmic Settings</h4>
                       </div>
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-1">Environment</label>
-                        <select
-                          value={settings.dataSources.rithmic.environment}
-                          onChange={(e) => updateSetting('dataSources.rithmic.environment', e.target.value)}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                        >
-                          <option value="test">Test</option>
-                          <option value="live">Live</option>
-                        </select>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">API Key</label>
+                            <input
+                              type="password"
+                              value={settings.dataSources.rithmic?.apiKey || ''}
+                              onChange={(e) => updateSetting('dataSources.rithmic.apiKey', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                              placeholder="Enter your Rithmic API key..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Environment</label>
+                            <select
+                              value={settings.dataSources.rithmic?.environment || 'test'}
+                              onChange={(e) => updateSetting('dataSources.rithmic.environment', e.target.value)}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            >
+                              <option value="test">Test Environment</option>
+                              <option value="live">Live Environment</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Heartbeat Interval (seconds)</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.rithmic?.heartbeatInterval || 30}
+                              onChange={(e) => updateSetting('dataSources.rithmic.heartbeatInterval', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-400 mb-2">Max Reconnect Attempts</label>
+                            <input
+                              type="number"
+                              value={settings.dataSources.rithmic?.maxReconnectAttempts || 5}
+                              onChange={(e) => updateSetting('dataSources.rithmic.maxReconnectAttempts', parseInt(e.target.value))}
+                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 space-y-3">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={settings.dataSources.rithmic?.encryptionEnabled ?? true}
+                            onChange={(e) => updateSetting('dataSources.rithmic.encryptionEnabled', e.target.checked)}
+                            className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-white">Enable SSL/TLS encryption</span>
+                        </label>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -405,6 +590,26 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                       />
                       <span className="ml-2 text-white">Show Tooltips</span>
                     </label>
+
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.display.autoScale}
+                        onChange={(e) => updateSetting('display.autoScale', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Auto-scale Charts</span>
+                    </label>
+
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.display.gridLines}
+                        onChange={(e) => updateSetting('display.gridLines', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Show Grid Lines</span>
+                    </label>
                   </div>
                 </div>
               )}
@@ -432,6 +637,16 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                         className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="ml-2 text-white">Sound Alerts</span>
+                    </label>
+
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.alerts.connectionAlerts}
+                        onChange={(e) => updateSetting('alerts.connectionAlerts', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Connection Alerts</span>
                     </label>
 
                     <label className="flex items-center">
@@ -467,11 +682,11 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                     <label className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={settings.alerts.strategyAlerts}
-                        onChange={(e) => updateSetting('alerts.strategyAlerts', e.target.checked)}
+                        checked={settings.alerts.riskAlerts}
+                        onChange={(e) => updateSetting('alerts.riskAlerts', e.target.checked)}
                         className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-white">Strategy Alerts</span>
+                      <span className="ml-2 text-white">Risk Alerts</span>
                     </label>
                   </div>
                 </div>
@@ -515,55 +730,87 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                       />
                     </div>
 
-                    <div className="flex items-center">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={settings.risk.autoStopLoss}
-                          onChange={(e) => updateSetting('risk.autoStopLoss', e.target.checked)}
-                          className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-white">Auto Stop Loss</span>
-                      </label>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">Portfolio Heat Limit (%)</label>
+                      <input
+                        type="number"
+                        value={settings.risk.portfolioHeatLimit}
+                        onChange={(e) => updateSetting('risk.portfolioHeatLimit', parseInt(e.target.value))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                      />
                     </div>
+                  </div>
+
+                  <div className="flex items-center">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.risk.autoStopLoss}
+                        onChange={(e) => updateSetting('risk.autoStopLoss', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Auto Stop Loss</span>
+                    </label>
                   </div>
                 </div>
               )}
 
-              {activeTab === 'strategies' && (
+              {activeTab === 'advanced' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white">Strategy Configuration</h3>
+                  <h3 className="text-lg font-semibold text-white">Advanced Settings</h3>
                   
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">Data Retention (days)</label>
+                      <input
+                        type="number"
+                        value={settings.advanced.dataRetention}
+                        onChange={(e) => updateSetting('advanced.dataRetention', parseInt(e.target.value))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">API Timeout (ms)</label>
+                      <input
+                        type="number"
+                        value={settings.advanced.apiTimeout}
+                        onChange={(e) => updateSetting('advanced.apiTimeout', parseInt(e.target.value))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">Max Concurrent Connections</label>
+                      <input
+                        type="number"
+                        value={settings.advanced.maxConcurrentConnections}
+                        onChange={(e) => updateSetting('advanced.maxConcurrentConnections', parseInt(e.target.value))}
+                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-4">
-                    {Object.entries(settings.strategies).map(([name, strategy]) => (
-                      <div key={name} className="bg-gray-800 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-white font-medium">{name}</h4>
-                          <label className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={strategy.enabled}
-                              onChange={(e) => updateSetting(`strategies.${name}.enabled`, e.target.checked)}
-                              className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="ml-2 text-gray-400">Enabled</span>
-                          </label>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-400 mb-2">Weight</label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={strategy.weight}
-                            onChange={(e) => updateSetting(`strategies.${name}.weight`, parseFloat(e.target.value))}
-                            className="w-full"
-                          />
-                          <div className="text-sm text-gray-400 mt-1">{(strategy.weight * 100).toFixed(0)}%</div>
-                        </div>
-                      </div>
-                    ))}
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.advanced.performanceMode}
+                        onChange={(e) => updateSetting('advanced.performanceMode', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Performance Mode (reduces visual effects)</span>
+                    </label>
+
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.advanced.debugMode}
+                        onChange={(e) => updateSetting('advanced.debugMode', e.target.checked)}
+                        className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-white">Debug Mode (verbose logging)</span>
+                    </label>
                   </div>
                 </div>
               )}
