@@ -24,8 +24,8 @@ export interface DashboardContext {
 export class MistralAIService {
   private static instance: MistralAIService;
   private client: Mistral;
-  private apiKey: string = '';
-  private isConfigured: boolean = false;
+  private apiKey: string = '0sa77QVQOdtKXDcWxKjLkrCFLTU3xb7Y';
+  private isConfigured: boolean = true;
   private dashboardContext: DashboardContext | null = null;
 
   static getInstance(): MistralAIService {
@@ -36,6 +36,7 @@ export class MistralAIService {
   }
 
   constructor() {
+    this.client = new Mistral({ apiKey: this.apiKey });
     this.loadConfiguration();
   }
 
@@ -44,14 +45,16 @@ export class MistralAIService {
     if (stored) {
       try {
         const config = JSON.parse(stored);
-        this.apiKey = config.apiKey;
-        if (this.apiKey) {
+        if (config.apiKey && config.apiKey !== this.apiKey) {
+          this.apiKey = config.apiKey;
           this.client = new Mistral({ apiKey: this.apiKey });
-          this.isConfigured = true;
         }
       } catch (error) {
         console.error('Failed to load Mistral AI configuration:', error);
       }
+    } else {
+      // Save the default API key
+      localStorage.setItem('mistral-ai-config', JSON.stringify({ apiKey: this.apiKey }));
     }
   }
 
