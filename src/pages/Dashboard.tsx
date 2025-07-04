@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTradingData } from '../hooks/useTradingData';
+import { useAIIntegration } from '../hooks/useAIIntegration';
 import { MarketData } from '../components/MarketData';
 import { StrategyMonitor } from '../components/StrategyMonitor';
 import { PositionManager } from '../components/PositionManager';
@@ -8,8 +9,11 @@ import { MLInsights } from '../components/MLInsights';
 import { OrderFlowAnalysis } from '../components/OrderFlowAnalysis';
 import { LiquidationDetector } from '../components/LiquidationDetector';
 import { MQScoreAnalytics } from '../components/MQScoreAnalytics';
+import { AIChat } from '../components/AIChat';
 
 export const Dashboard: React.FC = () => {
+  const [isAIChatMinimized, setIsAIChatMinimized] = useState(true);
+  
   const {
     marketData,
     strategies,
@@ -20,6 +24,8 @@ export const Dashboard: React.FC = () => {
     liquidationData,
     mqScore
   } = useTradingData();
+
+  const { dashboardContext } = useAIIntegration();
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6 space-y-8">
@@ -37,6 +43,13 @@ export const Dashboard: React.FC = () => {
           <MQScoreAnalytics mqScore={mqScore} />
         </div>
       </div>
+
+      {/* AI Chat Integration */}
+      <AIChat 
+        dashboardContext={dashboardContext}
+        isMinimized={isAIChatMinimized}
+        onToggleMinimize={() => setIsAIChatMinimized(!isAIChatMinimized)}
+      />
     </div>
   );
 };

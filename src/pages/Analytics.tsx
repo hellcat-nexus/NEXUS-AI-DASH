@@ -1,9 +1,13 @@
 import React from 'react';
 import { Trade } from '../components/TradeCard';
 import { useTrades } from '../context/TradeContext';
+import { useAIIntegration } from '../hooks/useAIIntegration';
+import { AIAnalysisPanel } from '../components/AIAnalysisPanel';
 
 export const Analytics: React.FC = () => {
   const { trades: contextTrades } = useTrades();
+  const { dashboardContext } = useAIIntegration();
+  
   const mockTrades: Trade[] = React.useMemo(() => {
     if (contextTrades.length) return contextTrades;
     // fallback demo data
@@ -62,7 +66,7 @@ export const Analytics: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Trade Analytics</h1>
-          <p className="text-gray-400">Analyze your trading performance across different periods</p>
+          <p className="text-gray-400">AI-powered analysis of your trading performance</p>
         </div>
         <div className="flex space-x-3">
           <button
@@ -82,6 +86,11 @@ export const Analytics: React.FC = () => {
             className={`px-4 py-2 rounded-lg text-sm font-medium ${timeframe==='all'?'bg-blue-600':'bg-gray-800 hover:bg-gray-700'}`}
           >ALL</button>
         </div>
+      </div>
+
+      {/* AI Analysis Panel */}
+      <div className="mb-8">
+        <AIAnalysisPanel dashboardContext={dashboardContext} />
       </div>
 
       {/* Trade Performance Overview */}
@@ -136,8 +145,6 @@ export const Analytics: React.FC = () => {
           </tbody>
         </table>
       </div>
-
-      {/* End of analytics page (market-quality dashboard removed) */}
     </div>
   );
 };

@@ -11,6 +11,7 @@
     "server": "node server/nexus-nt8-bridge.js"
   },
   "dependencies": {
+    "@mistralai/mistralai": "^1.7.3",
     "body-parser": "^2.2.0",
     "chokidar": "^4.0.3",
     "cors": "^2.8.5",
