@@ -10,6 +10,7 @@ import { OrderFlowAnalysis } from '../components/OrderFlowAnalysis';
 import { LiquidationDetector } from '../components/LiquidationDetector';
 import { MQScoreAnalytics } from '../components/MQScoreAnalytics';
 import { AIChat } from '../components/AIChat';
+import { PythonBrainMonitor } from '../components/PythonBrainMonitor';
 
 export const Dashboard: React.FC = () => {
   const [isAIChatMinimized, setIsAIChatMinimized] = useState(true);
@@ -29,6 +30,9 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6 space-y-8">
+      {/* Python Brain Monitor - Top Priority */}
+      <PythonBrainMonitor dashboardContext={dashboardContext} />
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-8">
           <MarketData data={marketData} />
