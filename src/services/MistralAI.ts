@@ -81,7 +81,7 @@ export class EnhancedMistralAIService {
 
   constructor() {
     this.config = {
-      apiKey: process.env.MISTRAL_API_KEY || '',
+      apiKey: import.meta.env.VITE_MISTRAL_API_KEY || '',
       model: 'mistral-large-latest',
       temperature: 0.7,
       maxTokens: 4000,
