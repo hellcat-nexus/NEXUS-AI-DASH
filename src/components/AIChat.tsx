@@ -45,7 +45,7 @@ export const AIChat: React.FC<AIChatProps> = ({
   useEffect(() => {
     // Load existing configuration
     setIsConfigured(mistralAI.isReady());
-    setApiKey(mistralAI.getApiKey());
+    setApiKey(mistralAI.getConfiguration().apiKey);
     
     // Update AI with dashboard context
     mistralAI.updateDashboardContext(dashboardContext);
@@ -106,12 +106,12 @@ What would you like to analyze today?`,
     setIsLoading(true);
 
     try {
-      const response = await mistralAI.sendMessage(inputMessage.trim(), messages);
+      const response = await mistralAI.sendMessage(inputMessage.trim(), { useHistory: true });
       
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response,
+        content: response.content,
         timestamp: Date.now()
       };
 
@@ -135,16 +135,20 @@ What would you like to analyze today?`,
       let response = '';
       switch (action) {
         case 'market-analysis':
-          response = await mistralAI.analyzeMarketConditions();
+          const marketAnalysis = await mistralAI.analyzeMarketConditions();
+          response = marketAnalysis.analysis;
           break;
         case 'strategy-performance':
-          response = await mistralAI.analyzeStrategyPerformance();
+          const strategyAnalysis = await mistralAI.analyzeStrategyPerformance();
+          response = strategyAnalysis.analysis;
           break;
         case 'risk-assessment':
-          response = await mistralAI.analyzeRiskProfile();
+          const riskAnalysis = await mistralAI.analyzeRiskProfile();
+          response = riskAnalysis.analysis;
           break;
         case 'journal-review':
-          response = await mistralAI.analyzeTradingJournal();
+          const journalAnalysis = await mistralAI.analyzeTradingJournal();
+          response = journalAnalysis.analysis;
           break;
         default:
           response = 'Unknown action requested.';
@@ -167,7 +171,7 @@ What would you like to analyze today?`,
 
   const handleConfigSave = () => {
     if (apiKey.trim()) {
-      const success = mistralAI.configure(apiKey.trim());
+      const success = mistralAI.configure({ apiKey: apiKey.trim() });
       setIsConfigured(success);
       setShowConfig(false);
       
