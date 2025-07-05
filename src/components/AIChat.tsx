@@ -44,8 +44,9 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   useEffect(() => {
     // Load existing configuration
+    const currentConfig = mistralAI.getConfiguration();
     setIsConfigured(mistralAI.isReady());
-    setApiKey(mistralAI.getConfiguration().apiKey);
+    setApiKey(currentConfig.apiKey || '');
     
     // Update AI with dashboard context
     mistralAI.updateDashboardContext(dashboardContext);
@@ -164,6 +165,13 @@ What would you like to analyze today?`,
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Quick action error:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `I encountered an error while performing this analysis: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your API configuration.`,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -171,18 +179,38 @@ What would you like to analyze today?`,
 
   const handleConfigSave = () => {
     if (apiKey.trim()) {
-      const success = mistralAI.configure({ apiKey: apiKey.trim() });
-      setIsConfigured(success);
-      setShowConfig(false);
-      
-      if (success) {
-        const configMessage: ChatMessage = {
+      try {
+        const success = mistralAI.configure({ apiKey: apiKey.trim() });
+        setIsConfigured(success);
+        
+        if (success) {
+          setShowConfig(false);
+          const configMessage: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '✅ Mistral AI has been configured successfully! I\'m now ready to help you with advanced trading analysis.',
+            timestamp: Date.now()
+          };
+          setMessages(prev => [...prev, configMessage]);
+        } else {
+          // Show error message
+          const errorMessage: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '❌ Failed to configure Mistral AI. Please check your API key and try again.',
+            timestamp: Date.now()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      } catch (error) {
+        console.error('Configuration error:', error);
+        const errorMessage: ChatMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: '✅ Mistral AI has been configured successfully! I\'m now ready to help you with advanced trading analysis.',
+          content: `❌ Configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`,
           timestamp: Date.now()
         };
-        setMessages(prev => [...prev, configMessage]);
+        setMessages(prev => [...prev, errorMessage]);
       }
     }
   };
@@ -194,6 +222,34 @@ What would you like to analyze today?`,
   const clearChat = () => {
     setMessages([]);
     localStorage.removeItem('ai-chat-history');
+  };
+
+  const testConnection = async () => {
+    if (!isConfigured) return;
+    
+    setIsLoading(true);
+    try {
+      const testResult = await mistralAI.testConnection();
+      const message: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: testResult 
+          ? '✅ Connection test successful! AI is ready to assist you.'
+          : '❌ Connection test failed. Please check your API key and try again.',
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, message]);
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isMinimized) {
@@ -431,6 +487,15 @@ What would you like to analyze today?`,
                 >
                   Clear Chat
                 </button>
+                {isConfigured && (
+                  <button
+                    onClick={testConnection}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    Test
+                  </button>
+                )}
                 <button
                   onClick={handleConfigSave}
                   disabled={!apiKey.trim()}
