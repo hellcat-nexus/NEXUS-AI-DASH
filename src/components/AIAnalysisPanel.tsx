@@ -12,7 +12,7 @@ import {
   Clock,
   Target
 } from 'lucide-react';
-import { mistralAI } from '../services/MistralAI';
+import { enhancedMistralAI as mistralAI } from '../services/MistralAI';
 
 interface AIAnalysisPanelProps {
   dashboardContext: any;

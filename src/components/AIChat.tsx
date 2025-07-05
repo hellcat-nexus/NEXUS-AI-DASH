@@ -21,7 +21,7 @@ import {
   ThumbsUp,
   ThumbsDown
 } from 'lucide-react';
-import { mistralAI, ChatMessage, DashboardContext } from '../services/MistralAI';
+import { enhancedMistralAI as mistralAI, ChatMessage, DashboardContext } from '../services/MistralAI';
 
 interface AIChatProps {
   dashboardContext: DashboardContext;
