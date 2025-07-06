@@ -5,9 +5,7 @@ export class ConfigurationService {
 
   constructor() {
     this.config = {
-      apiKey: 
-define_api_key_here
-,
+      apiKey: "define_api_key_here",
       model: 'mistral-large-latest',
       temperature: 0.7,
       maxTokens: 4000,
@@ -56,5 +54,3 @@ define_api_key_here
 }
 
 export const configService = new ConfigurationService();
-
-
