@@ -15,7 +15,10 @@ import {
   Cpu,
   Settings,
   Play,
-  Pause
+  Pause,
+  Server,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { pythonBrainClient, PythonBrainStatus, PythonAnalysisResult } from '../services/PythonBrainClient';
 
@@ -30,17 +33,24 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [autoAnalysisEnabled, setAutoAnalysisEnabled] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check initial connection status
     setIsConnected(pythonBrainClient.getConnectionStatus());
     
-    // Load status
+    // Load status with error handling
     loadStatus();
     
     // Set up event listeners
     const handleConnection = (event: CustomEvent) => {
       setIsConnected(event.detail.isConnected);
+      if (event.detail.status === 'connected') {
+        setConnectionError(null);
+      } else if (event.detail.status === 'failed') {
+        setConnectionError('Failed to connect to Python Brain server. Please ensure it is running on port 5000.');
+      }
     };
 
     const handleAnalysisResult = (event: CustomEvent) => {
@@ -62,8 +72,8 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
       setRecentAnalysis(prev => [result, ...prev.slice(0, 9)]);
     });
 
-    // Periodic status updates
-    const statusInterval = setInterval(loadStatus, 10000); // Every 10 seconds
+    // Periodic status updates (less frequent to reduce errors)
+    const statusInterval = setInterval(loadStatus, 30000); // Every 30 seconds
 
     return () => {
       window.removeEventListener('pythonBrainConnection', handleConnection as EventListener);
@@ -82,18 +92,31 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
   }, [dashboardContext, autoAnalysisEnabled, isConnected]);
 
   const loadStatus = async () => {
+    if (isLoading) return; // Prevent concurrent requests
+    
+    setIsLoading(true);
     try {
       const currentStatus = await pythonBrainClient.getStatus();
       setStatus(currentStatus);
+      setConnectionError(null);
     } catch (error) {
       console.error('Failed to load Python Brain status:', error);
+      setConnectionError(error instanceof Error ? error.message : 'Unknown error occurred');
+      // Don't clear status on error, keep showing last known status
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const runAnalysis = async (analysisType: string) => {
-    if (!isConnected || !dashboardContext) return;
+    if (!isConnected || !dashboardContext) {
+      setConnectionError('Cannot run analysis: Python Brain not connected or no data available');
+      return;
+    }
 
     setIsAnalyzing(true);
+    setConnectionError(null);
+    
     try {
       let result: PythonAnalysisResult;
 
@@ -134,6 +157,7 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
       setLastUpdate(Date.now());
     } catch (error) {
       console.error(`Analysis error (${analysisType}):`, error);
+      setConnectionError(error instanceof Error ? error.message : `Analysis failed: ${analysisType}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -152,9 +176,9 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
   };
 
   const getStatusIcon = () => {
-    if (!isConnected) return <AlertCircle className="w-5 h-5 text-red-400" />;
+    if (!isConnected) return <WifiOff className="w-5 h-5 text-red-400" />;
     if (!status?.pythonReady) return <Clock className="w-5 h-5 text-yellow-400" />;
-    return <CheckCircle className="w-5 h-5 text-green-400" />;
+    return <Wifi className="w-5 h-5 text-green-400" />;
   };
 
   const formatAnalysisType = (type: string) => {
@@ -174,7 +198,7 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 relative">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-purple-900/20 rounded-full">
@@ -206,13 +230,48 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
           
           <button
             onClick={loadStatus}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            disabled={isLoading}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-50 rounded-lg transition-colors"
             title="Refresh Status"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
+
+      {/* Connection Error Alert */}
+      {connectionError && (
+        <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div>
+              <h4 className="text-red-400 font-medium">Connection Error</h4>
+              <p className="text-red-300 text-sm mt-1">{connectionError}</p>
+              <p className="text-red-300 text-xs mt-2">
+                Make sure to run: <code className="bg-red-800/30 px-1 rounded">npm run python-brain</code> in a separate terminal
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server Status Notice */}
+      {!isConnected && (
+        <div className="mb-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Server className="w-5 h-5 text-blue-400" />
+            <div>
+              <h4 className="text-blue-400 font-medium">Python Brain Server Required</h4>
+              <p className="text-blue-300 text-sm mt-1">
+                The Python Brain server needs to be running for analysis features to work.
+              </p>
+              <p className="text-blue-300 text-xs mt-2">
+                Run: <code className="bg-blue-800/30 px-1 rounded">npm run dev</code> to start all servers automatically
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Overview */}
       {status && (
@@ -333,7 +392,12 @@ export const PythonBrainMonitor: React.FC<PythonBrainMonitorProps> = ({ dashboar
             <div className="text-center py-8 text-gray-500">
               <Brain className="w-12 h-12 mx-auto mb-4 text-gray-600" />
               <p>No analysis results yet</p>
-              <p className="text-sm">Run an analysis to see results here</p>
+              <p className="text-sm">
+                {isConnected 
+                  ? "Run an analysis to see results here" 
+                  : "Connect to Python Brain server to enable analysis"
+                }
+              </p>
             </div>
           ) : (
             recentAnalysis.map((result, index) => (

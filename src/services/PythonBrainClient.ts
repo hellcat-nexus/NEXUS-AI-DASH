@@ -33,6 +33,7 @@ export class PythonBrainClient {
   private pendingRequests: Map<string, any> = new Map();
   private subscribers: Map<string, Function[]> = new Map();
   private analysisCache: Map<string, PythonAnalysisResult> = new Map();
+  private connectionTimeout: NodeJS.Timeout | null = null;
 
   static getInstance(): PythonBrainClient {
     if (!PythonBrainClient.instance) {
@@ -42,17 +43,38 @@ export class PythonBrainClient {
   }
 
   constructor() {
-    this.connect();
+    // Delay initial connection to allow servers to start
+    setTimeout(() => {
+      this.connect();
+    }, 2000);
   }
 
   private connect() {
+    // Clear any existing connection timeout
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+    }
+
     try {
+      console.log('🐍 Attempting to connect to Python Brain at:', this.wsUrl);
       this.websocket = new WebSocket(this.wsUrl);
       
+      // Set a connection timeout
+      this.connectionTimeout = setTimeout(() => {
+        if (this.websocket && this.websocket.readyState === WebSocket.CONNECTING) {
+          console.log('🐍 Connection timeout, closing WebSocket');
+          this.websocket.close();
+        }
+      }, 5000);
+
       this.websocket.onopen = () => {
         console.log('🐍 Connected to Python Brain');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
         this.emitConnectionEvent('connected');
       };
 
@@ -65,20 +87,32 @@ export class PythonBrainClient {
         }
       };
 
-      this.websocket.onclose = () => {
-        console.log('🐍 Disconnected from Python Brain');
+      this.websocket.onclose = (event) => {
+        console.log('🐍 Disconnected from Python Brain', event.code, event.reason);
         this.isConnected = false;
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
         this.emitConnectionEvent('disconnected');
         this.handleReconnect();
       };
 
       this.websocket.onerror = (error) => {
         console.error('🐍 WebSocket error:', error);
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
         this.emitConnectionEvent('error');
       };
 
     } catch (error) {
       console.error('🐍 Failed to connect to Python Brain:', error);
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
       this.handleReconnect();
     }
   }
@@ -86,13 +120,14 @@ export class PythonBrainClient {
   private handleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`🐍 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+      console.log(`🐍 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
       
       setTimeout(() => {
         this.connect();
-      }, this.reconnectDelay * this.reconnectAttempts);
+      }, delay);
     } else {
-      console.error('🐍 Max reconnection attempts reached');
+      console.error('🐍 Max reconnection attempts reached. Python Brain server may not be running.');
       this.emitConnectionEvent('failed');
     }
   }
@@ -242,7 +277,7 @@ export class PythonBrainClient {
 
   private async requestAnalysis(request: PythonAnalysisRequest): Promise<PythonAnalysisResult> {
     if (!this.isConnected) {
-      throw new Error('Python Brain not connected');
+      throw new Error('Python Brain not connected. Please ensure the Python Brain server is running.');
     }
 
     try {
@@ -252,6 +287,7 @@ export class PythonBrainClient {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request.data),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       });
 
       if (!response.ok) {
@@ -262,20 +298,28 @@ export class PythonBrainClient {
       return result as PythonAnalysisResult;
     } catch (error) {
       console.error('🐍 Analysis request error:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Analysis request timed out. The Python Brain server may be overloaded.');
+      }
       throw error;
     }
   }
 
   public async getStatus(): Promise<PythonBrainStatus> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`);
+      const response = await fetch(`${this.baseUrl}/health`, {
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
       if (!response.ok) {
         throw new Error(`Status request failed: ${response.statusText}`);
       }
       return await response.json();
     } catch (error) {
       console.error('🐍 Status request error:', error);
-      throw error;
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Status request timed out. The Python Brain server may not be running.');
+      }
+      throw new Error('Python Brain server is not accessible. Please ensure it is running on port 5000.');
     }
   }
 
@@ -307,12 +351,18 @@ export class PythonBrainClient {
   }
 
   public distributeData(data: any): void {
+    if (!this.isConnected) {
+      console.warn('🐍 Cannot distribute data: Python Brain not connected');
+      return;
+    }
+
     fetch(`${this.baseUrl}/api/data/distribute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
+      signal: AbortSignal.timeout(5000)
     }).catch(error => {
       console.error('🐍 Data distribution error:', error);
     });
@@ -344,6 +394,10 @@ export class PythonBrainClient {
   }
 
   public disconnect(): void {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
