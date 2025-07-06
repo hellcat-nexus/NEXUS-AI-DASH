@@ -12,7 +12,7 @@ import {
   Clock,
   Target
 } from 'lucide-react';
-import { enhancedMistralAI as mistralAI } from '../services/MistralAI';
+import { nexusAIService } from '../services/nexusAIService';
 
 interface AIAnalysisPanelProps {
   dashboardContext: any;
@@ -41,33 +41,33 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ dashboardConte
   useEffect(() => {
     // Update AI context when dashboard data changes
     if (dashboardContext) {
-      mistralAI.updateDashboardContext(dashboardContext);
+      nexusAIService.updateDashboardContext(dashboardContext);
     }
   }, [dashboardContext]);
 
   const runAnalysis = async (type: 'market' | 'strategy' | 'risk' | 'journal') => {
-    if (!mistralAI.isReady()) return;
+    if (!nexusAIService.isReady()) return;
 
     setIsLoading(prev => ({ ...prev, [type]: true }));
 
     try {
-      let result = '';
+      let result;
       switch (type) {
         case 'market':
-          result = await mistralAI.analyzeMarketConditions();
+          result = await nexusAIService.analyzeMarketConditions();
           break;
         case 'strategy':
-          result = await mistralAI.analyzeStrategyPerformance();
+          result = await nexusAIService.analyzeStrategyPerformance();
           break;
         case 'risk':
-          result = await mistralAI.analyzeRiskProfile();
+          result = await nexusAIService.analyzeRiskProfile();
           break;
         case 'journal':
-          result = await mistralAI.analyzeTradingJournal();
+          result = await nexusAIService.analyzeTradingJournal();
           break;
       }
 
-      setAnalyses(prev => ({ ...prev, [type]: result }));
+      setAnalyses(prev => ({ ...prev, [type]: result.analysis }));
       setLastUpdate(Date.now());
     } catch (error) {
       console.error(`${type} analysis error:`, error);
@@ -77,7 +77,7 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ dashboardConte
   };
 
   const runAllAnalyses = async () => {
-    if (!mistralAI.isReady()) return;
+    if (!nexusAIService.isReady()) return;
 
     await Promise.all([
       runAnalysis('market'),
@@ -87,7 +87,7 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ dashboardConte
     ]);
   };
 
-  if (!mistralAI.isReady()) {
+  if (!nexusAIService.isReady()) {
     return (
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
@@ -98,7 +98,7 @@ export const AIAnalysisPanel: React.FC<AIAnalysisPanelProps> = ({ dashboardConte
           <AlertTriangle className="w-5 h-5 text-yellow-400" />
         </div>
         <div className="text-center py-8">
-          <p className="text-gray-400 mb-4">AI analysis requires Mistral AI configuration</p>
+          <p className="text-gray-400 mb-4">AI analysis requires NEXUS AI configuration</p>
           <p className="text-sm text-gray-500">Open the AI chat to configure your API key</p>
         </div>
       </div>

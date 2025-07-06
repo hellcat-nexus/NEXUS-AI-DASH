@@ -21,7 +21,8 @@ import {
   ThumbsUp,
   ThumbsDown
 } from 'lucide-react';
-import { enhancedMistralAI as mistralAI, ChatMessage, DashboardContext } from '../services/MistralAI';
+import { nexusAIService } from '../services/nexusAIService';
+import { ChatMessage, DashboardContext } from '../types/ai';
 
 interface AIChatProps {
   dashboardContext: DashboardContext;
@@ -44,15 +45,15 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   useEffect(() => {
     // Load existing configuration
-    const currentConfig = mistralAI.getConfiguration();
-    setIsConfigured(mistralAI.isReady());
+    const currentConfig = nexusAIService.getConfiguration();
+    setIsConfigured(nexusAIService.isReady());
     setApiKey(currentConfig.apiKey || '');
     
     // Update AI with dashboard context
-    mistralAI.updateDashboardContext(dashboardContext);
+    nexusAIService.updateDashboardContext(dashboardContext);
     
     // Load chat history
-    const stored = localStorage.getItem('ai-chat-history');
+    const stored = localStorage.getItem('nexus-ai-chat-history');
     if (stored) {
       try {
         setMessages(JSON.parse(stored));
@@ -64,7 +65,7 @@ export const AIChat: React.FC<AIChatProps> = ({
       setMessages([{
         id: '1',
         role: 'assistant',
-        content: `Hello! I'm NEXUS AI, your intelligent trading assistant. I have access to all your dashboard data including market conditions, positions, strategies, and risk metrics.
+        content: `Hello! I'm NEXUS AI Pro, your intelligent trading assistant. I have access to all your dashboard data including market conditions, positions, strategies, and risk metrics.
 
 I can help you with:
 🔍 **Market Analysis** - Analyze current market conditions and trends
@@ -83,7 +84,7 @@ What would you like to analyze today?`,
   useEffect(() => {
     // Save chat history
     if (messages.length > 0) {
-      localStorage.setItem('ai-chat-history', JSON.stringify(messages));
+      localStorage.setItem('nexus-ai-chat-history', JSON.stringify(messages));
     }
   }, [messages]);
 
@@ -107,16 +108,8 @@ What would you like to analyze today?`,
     setIsLoading(true);
 
     try {
-      const response = await mistralAI.sendMessage(inputMessage.trim(), { useHistory: true });
-      
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.content,
-        timestamp: Date.now()
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
+      const response = await nexusAIService.sendMessage(inputMessage.trim(), { useHistory: true });
+      setMessages(prev => [...prev, response]);
     } catch (error) {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -133,32 +126,32 @@ What would you like to analyze today?`,
   const handleQuickAction = async (action: string) => {
     setIsLoading(true);
     try {
-      let response = '';
+      let response;
       switch (action) {
         case 'market-analysis':
-          const marketAnalysis = await mistralAI.analyzeMarketConditions();
-          response = marketAnalysis.analysis;
+          const marketAnalysis = await nexusAIService.analyzeMarketConditions();
+          response = { content: marketAnalysis.analysis };
           break;
         case 'strategy-performance':
-          const strategyAnalysis = await mistralAI.analyzeStrategyPerformance();
-          response = strategyAnalysis.analysis;
+          const strategyAnalysis = await nexusAIService.analyzeStrategyPerformance();
+          response = { content: strategyAnalysis.analysis };
           break;
         case 'risk-assessment':
-          const riskAnalysis = await mistralAI.analyzeRiskProfile();
-          response = riskAnalysis.analysis;
+          const riskAnalysis = await nexusAIService.analyzeRiskProfile();
+          response = { content: riskAnalysis.analysis };
           break;
         case 'journal-review':
-          const journalAnalysis = await mistralAI.analyzeTradingJournal();
-          response = journalAnalysis.analysis;
+          const journalAnalysis = await nexusAIService.analyzeTradingJournal();
+          response = { content: journalAnalysis.analysis };
           break;
         default:
-          response = 'Unknown action requested.';
+          response = { content: 'Unknown action requested.' };
       }
 
       const assistantMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: response,
+        content: response.content,
         timestamp: Date.now()
       };
 
@@ -180,7 +173,7 @@ What would you like to analyze today?`,
   const handleConfigSave = () => {
     if (apiKey.trim()) {
       try {
-        const success = mistralAI.configure({ apiKey: apiKey.trim() });
+        const success = nexusAIService.configure({ apiKey: apiKey.trim() });
         setIsConfigured(success);
         
         if (success) {
@@ -188,7 +181,7 @@ What would you like to analyze today?`,
           const configMessage: ChatMessage = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: '✅ Mistral AI has been configured successfully! I\'m now ready to help you with advanced trading analysis.',
+            content: '✅ NEXUS AI has been configured successfully! I\'m now ready to help you with advanced trading analysis.',
             timestamp: Date.now()
           };
           setMessages(prev => [...prev, configMessage]);
@@ -197,7 +190,7 @@ What would you like to analyze today?`,
           const errorMessage: ChatMessage = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: '❌ Failed to configure Mistral AI. Please check your API key and try again.',
+            content: '❌ Failed to configure NEXUS AI. Please check your API key and try again.',
             timestamp: Date.now()
           };
           setMessages(prev => [...prev, errorMessage]);
@@ -221,7 +214,7 @@ What would you like to analyze today?`,
 
   const clearChat = () => {
     setMessages([]);
-    localStorage.removeItem('ai-chat-history');
+    localStorage.removeItem('nexus-ai-chat-history');
   };
 
   const testConnection = async () => {
@@ -229,7 +222,7 @@ What would you like to analyze today?`,
     
     setIsLoading(true);
     try {
-      const testResult = await mistralAI.testConnection();
+      const testResult = await nexusAIService.testConnection();
       const message: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
@@ -276,7 +269,7 @@ What would you like to analyze today?`,
             <Brain className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-white font-semibold">NEXUS AI</h3>
+            <h3 className="text-white font-semibold">NEXUS AI Pro</h3>
             <div className="flex items-center space-x-2">
               {isConfigured ? (
                 <div className="flex items-center space-x-1">
