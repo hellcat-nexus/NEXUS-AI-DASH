@@ -28,12 +28,14 @@ export class PythonBrainClient {
   private wsUrl: string = 'ws://localhost:5000';
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-  private reconnectDelay: number = 2000;
+  private maxReconnectAttempts: number = 3;
+  private reconnectDelay: number = 5000;
   private pendingRequests: Map<string, any> = new Map();
   private subscribers: Map<string, Function[]> = new Map();
   private analysisCache: Map<string, PythonAnalysisResult> = new Map();
   private connectionTimeout: NodeJS.Timeout | null = null;
+  private serverCheckInterval: NodeJS.Timeout | null = null;
+  private isServerAvailable: boolean = false;
 
   static getInstance(): PythonBrainClient {
     if (!PythonBrainClient.instance) {
@@ -43,13 +45,67 @@ export class PythonBrainClient {
   }
 
   constructor() {
-    // Delay initial connection to allow servers to start
-    setTimeout(() => {
-      this.connect();
-    }, 2000);
+    // Check server availability first, then attempt connection
+    this.checkServerAvailability();
+    
+    // Set up periodic server availability checks
+    this.serverCheckInterval = setInterval(() => {
+      this.checkServerAvailability();
+    }, 10000); // Check every 10 seconds
+  }
+
+  private async checkServerAvailability(): Promise<void> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const response = await fetch(`${this.baseUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        if (!this.isServerAvailable) {
+          console.log('🐍 Python Brain server is now available');
+          this.isServerAvailable = true;
+          // If server just became available and we're not connected, try to connect
+          if (!this.isConnected) {
+            this.connect();
+          }
+        }
+      } else {
+        this.handleServerUnavailable();
+      }
+    } catch (error) {
+      this.handleServerUnavailable();
+    }
+  }
+
+  private handleServerUnavailable(): void {
+    if (this.isServerAvailable) {
+      console.log('🐍 Python Brain server is no longer available');
+      this.isServerAvailable = false;
+      this.isConnected = false;
+      if (this.websocket) {
+        this.websocket.close();
+        this.websocket = null;
+      }
+      this.emitConnectionEvent('server_unavailable');
+    }
   }
 
   private connect() {
+    // Don't attempt connection if server is not available
+    if (!this.isServerAvailable) {
+      console.log('🐍 Skipping connection attempt - server not available');
+      return;
+    }
+
     // Clear any existing connection timeout
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout);
@@ -118,17 +174,25 @@ export class PythonBrainClient {
   }
 
   private handleReconnect() {
+    // Only attempt reconnect if server is available
+    if (!this.isServerAvailable) {
+      console.log('🐍 Skipping reconnect - server not available');
+      return;
+    }
+
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+      const delay = this.reconnectDelay;
       console.log(`🐍 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
       
       setTimeout(() => {
         this.connect();
       }, delay);
     } else {
-      console.error('🐍 Max reconnection attempts reached. Python Brain server may not be running.');
+      console.error('🐍 Max reconnection attempts reached. Will retry when server becomes available.');
       this.emitConnectionEvent('failed');
+      // Reset attempts so we can try again when server becomes available
+      this.reconnectAttempts = 0;
     }
   }
 
@@ -214,7 +278,7 @@ export class PythonBrainClient {
 
   private emitConnectionEvent(status: string) {
     window.dispatchEvent(new CustomEvent('pythonBrainConnection', {
-      detail: { status, isConnected: this.isConnected }
+      detail: { status, isConnected: this.isConnected, serverAvailable: this.isServerAvailable }
     }));
   }
 
@@ -276,48 +340,77 @@ export class PythonBrainClient {
   }
 
   private async requestAnalysis(request: PythonAnalysisRequest): Promise<PythonAnalysisResult> {
+    if (!this.isServerAvailable) {
+      throw new Error('Python Brain server is not available. Please ensure the server is running on port 5000.');
+    }
+
     if (!this.isConnected) {
-      throw new Error('Python Brain not connected. Please ensure the Python Brain server is running.');
+      throw new Error('Python Brain not connected. Please wait for connection to be established.');
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch(`${this.baseUrl}/api/analyze/${request.type.replace('_analysis', '').replace('_', '/')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request.data),
-        signal: AbortSignal.timeout(30000) // 30 second timeout
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error(`Analysis request failed: ${response.statusText}`);
+        throw new Error(`Analysis request failed: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
       return result as PythonAnalysisResult;
     } catch (error) {
       console.error('🐍 Analysis request error:', error);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Analysis request timed out. The Python Brain server may be overloaded.');
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Analysis request timed out. The Python Brain server may be overloaded.');
+        }
+        throw error;
       }
-      throw error;
+      throw new Error('Unknown error occurred during analysis request');
     }
   }
 
   public async getStatus(): Promise<PythonBrainStatus> {
+    if (!this.isServerAvailable) {
+      throw new Error('Python Brain server is not available. Please ensure it is running on port 5000.');
+    }
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch(`${this.baseUrl}/health`, {
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        }
       });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(`Status request failed: ${response.statusText}`);
+        throw new Error(`Status request failed: ${response.status} ${response.statusText}`);
       }
+      
       return await response.json();
     } catch (error) {
       console.error('🐍 Status request error:', error);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Status request timed out. The Python Brain server may not be running.');
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Status request timed out. The Python Brain server may not be responding.');
+        }
+        throw error;
       }
       throw new Error('Python Brain server is not accessible. Please ensure it is running on port 5000.');
     }
@@ -351,10 +444,18 @@ export class PythonBrainClient {
   }
 
   public distributeData(data: any): void {
+    if (!this.isServerAvailable) {
+      console.warn('🐍 Cannot distribute data: Python Brain server not available');
+      return;
+    }
+
     if (!this.isConnected) {
       console.warn('🐍 Cannot distribute data: Python Brain not connected');
       return;
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     fetch(`${this.baseUrl}/api/data/distribute`, {
       method: 'POST',
@@ -362,14 +463,21 @@ export class PythonBrainClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
-      signal: AbortSignal.timeout(5000)
+      signal: controller.signal
+    }).then(() => {
+      clearTimeout(timeoutId);
     }).catch(error => {
+      clearTimeout(timeoutId);
       console.error('🐍 Data distribution error:', error);
     });
   }
 
   public getConnectionStatus(): boolean {
     return this.isConnected;
+  }
+
+  public getServerAvailability(): boolean {
+    return this.isServerAvailable;
   }
 
   public getCachedAnalysis(analysisType: string): PythonAnalysisResult | null {
@@ -398,11 +506,16 @@ export class PythonBrainClient {
       clearTimeout(this.connectionTimeout);
       this.connectionTimeout = null;
     }
+    if (this.serverCheckInterval) {
+      clearInterval(this.serverCheckInterval);
+      this.serverCheckInterval = null;
+    }
     if (this.websocket) {
       this.websocket.close();
       this.websocket = null;
     }
     this.isConnected = false;
+    this.isServerAvailable = false;
   }
 }
 
