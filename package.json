@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server/nexus-nt8-bridge.js",
-    "python-brain": "node server/python-brain.js",
+    "python-brain": "node server/python-brain.cjs",
     "start:all": "concurrently \"npm run server\" \"npm run python-brain\" \"npm run dev:frontend\""
   },
   "dependencies": {
