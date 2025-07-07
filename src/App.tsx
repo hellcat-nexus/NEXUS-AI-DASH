@@ -9,10 +9,16 @@ import { Backtesting } from './pages/Backtesting';
 import { Playbooks } from './pages/Playbooks';
 import { Notebook } from './pages/Notebook';
 import { BrokerSettings } from './pages/BrokerSettings';
+import { LandingPage } from './pages/LandingPage';
 import { TradeProvider } from './context/TradeContext';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [showLanding, setShowLanding] = useState(true);
+
+  if (showLanding) {
+    return <LandingPage />;
+  }
 
   return (
     <TradeProvider>
